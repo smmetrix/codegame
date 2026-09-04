@@ -655,8 +655,8 @@ def _safe_value(
                         break
                     if type(key) not in (str, int, float, bool, bytes, type(None)):
                         continue
-                    safe_dict[_safe_value(key, depth=depth + 1, seen=seen)] = _safe_value(
-                        item, depth=depth + 1, seen=seen
+                    safe_dict[_safe_value(key, depth=depth + 1, seen=seen)] = (
+                        _safe_value(item, depth=depth + 1, seen=seen)
                     )
                 return safe_dict
 
@@ -764,8 +764,9 @@ def _worker(
     try:
         tree = _capture_last_expression(_parse_and_validate(source, max_ast_nodes))
         compiled = compile(tree, "<user_code>", "exec", dont_inherit=True, optimize=0)
-        with contextlib.redirect_stdout(stdout_buffer), contextlib.redirect_stderr(
-            stderr_buffer
+        with (
+            contextlib.redirect_stdout(stdout_buffer),
+            contextlib.redirect_stderr(stderr_buffer),
         ):
             exec(compiled, globals_dict, globals_dict)
 
@@ -861,7 +862,9 @@ class Sandbox:
             )
         if expected_output is not None and not isinstance(expected_output, str):
             raise TypeError("expected_output должен быть строкой или None")
-        if expected_variables is not None and not isinstance(expected_variables, Mapping):
+        if expected_variables is not None and not isinstance(
+            expected_variables, Mapping
+        ):
             raise TypeError("expected_variables должен быть Mapping или None")
 
         started_at = time.monotonic()

@@ -333,7 +333,9 @@ class GameState:
                     Path(temp_name).unlink(missing_ok=True)
                 except OSError:
                     temp_name = None
-            raise GameStateError(f"Не удалось сохранить игру в {destination}: {exc}") from exc
+            raise GameStateError(
+                f"Не удалось сохранить игру в {destination}: {exc}"
+            ) from exc
         return destination
 
     @classmethod
@@ -345,7 +347,9 @@ class GameState:
         except FileNotFoundError as exc:
             raise InvalidSaveError(f"Файл сохранения не найден: {source}") from exc
         except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-            raise InvalidSaveError(f"Не удалось прочитать сохранение {source}: {exc}") from exc
+            raise InvalidSaveError(
+                f"Не удалось прочитать сохранение {source}: {exc}"
+            ) from exc
         return cls.from_dict(data)
 
 
