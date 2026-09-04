@@ -374,6 +374,85 @@ def decrypt_caesar(text: str, shift: int) -> str:
     return "".join(decrypted)
 
 
+def bruteforce_pin(
+    target_checksum: int,
+    *,
+    multiplier: int = 37,
+    modulo: int = 100,
+    limit: int = 10_000,
+) -> int | None:
+    """Bonus API: ищет первый PIN по учебной модульной checksum."""
+
+    for value, name in (
+        (target_checksum, "target_checksum"),
+        (multiplier, "multiplier"),
+        (modulo, "modulo"),
+        (limit, "limit"),
+    ):
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise TypeError(f"{name} должен быть целым числом")
+    if modulo <= 0:
+        raise ValueError("modulo должен быть положительным")
+    if not 1 <= limit <= 100_000:
+        raise ValueError("limit должен быть от 1 до 100000")
+    for candidate in range(limit):
+        if (candidate * multiplier) % modulo == target_checksum:
+            return candidate
+    return None
+
+
+def generate_wordlist(
+    base_words: list[str] | tuple[str, ...],
+    suffixes: list[str] | tuple[str, ...] = ("", "1", "123", "2026"),
+) -> list[str]:
+    """Bonus API: создает ограниченный список мутаций слов без файловой системы."""
+
+    if type(base_words) not in (list, tuple) or type(suffixes) not in (list, tuple):
+        raise TypeError("base_words и suffixes должны быть list или tuple")
+    if len(base_words) > 500 or len(suffixes) > 50:
+        raise ValueError("Слишком много элементов для генерации wordlist")
+    if any(type(item) is not str for item in (*base_words, *suffixes)):
+        raise TypeError("Все элементы wordlist должны быть строками")
+
+    generated: list[str] = []
+    seen: set[str] = set()
+    for word in base_words:
+        variants = (word, word.lower(), word.upper(), word.capitalize())
+        for variant in variants:
+            for suffix in suffixes:
+                candidate = f"{variant}{suffix}"
+                if candidate not in seen:
+                    seen.add(candidate)
+                    generated.append(candidate)
+    return generated
+
+
+def hash_md5(text: str) -> str:
+    """Bonus API: возвращает MD5 учебной строки в hex-виде."""
+
+    if type(text) is not str:
+        raise TypeError("text должен быть строкой")
+    if len(text) > 10_000:
+        raise ValueError("text не может быть длиннее 10000 символов")
+    return hashlib.md5(text.encode("utf-8")).hexdigest()
+
+
+def decode_base64(text: str) -> str:
+    """Bonus API: строго декодирует Base64 в UTF-8 строку."""
+
+    if type(text) is not str:
+        raise TypeError("text должен быть строкой")
+    if len(text) > 100_000:
+        raise ValueError("Base64 строка слишком длинная")
+    import base64
+
+    try:
+        decoded = base64.b64decode(text.encode("ascii"), validate=True)
+        return decoded.decode("utf-8")
+    except (ValueError, UnicodeError) as exc:
+        raise ValueError(f"Некорректные Base64/UTF-8 данные: {exc}") from exc
+
+
 class _SafeModule:
     """Read-only facade that does not expose a module's imported dependencies."""
 
@@ -783,6 +862,7 @@ def _worker(
     max_memory_mb: int,
     max_ast_nodes: int,
     working_directory: str,
+    bonus_api_enabled: bool,
 ) -> None:
     _apply_resource_limits(timeout, max_memory_mb)
     try:
@@ -800,6 +880,15 @@ def _worker(
         "scan_ports": scan_ports,
         "send_payload": send_payload,
     }
+    if bonus_api_enabled:
+        globals_dict.update(
+            {
+                "bruteforce_pin": bruteforce_pin,
+                "decode_base64": decode_base64,
+                "generate_wordlist": generate_wordlist,
+                "hash_md5": hash_md5,
+            }
+        )
     initial_names = frozenset(globals_dict)
 
     try:
@@ -864,6 +953,7 @@ class Sandbox:
         max_output_chars: int = DEFAULT_MAX_OUTPUT_CHARS,
         max_memory_mb: int = DEFAULT_MAX_MEMORY_MB,
         max_ast_nodes: int = DEFAULT_MAX_AST_NODES,
+        bonus_api_enabled: bool = False,
     ) -> None:
         if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
             raise TypeError("timeout должен быть числом")
@@ -879,10 +969,14 @@ class Sandbox:
             if not minimum <= value <= maximum:
                 raise ValueError(f"{name} должен быть от {minimum} до {maximum}")
 
+        if not isinstance(bonus_api_enabled, bool):
+            raise TypeError("bonus_api_enabled должен быть bool")
+
         self.timeout = float(timeout)
         self.max_output_chars = max_output_chars
         self.max_memory_mb = max_memory_mb
         self.max_ast_nodes = max_ast_nodes
+        self.bonus_api_enabled = bonus_api_enabled
 
     def execute(
         self,
@@ -939,6 +1033,7 @@ class Sandbox:
                         self.max_memory_mb,
                         self.max_ast_nodes,
                         workdir,
+                        self.bonus_api_enabled,
                     ),
                     name="GreyHatSandbox",
                     daemon=True,
@@ -1059,10 +1154,11 @@ def execute_code(
     expected_output: str | None = None,
     expected_variables: Mapping[str, Any] | None = None,
     expected_result: Any = _UNSET,
+    bonus_api_enabled: bool = False,
 ) -> SandboxResult:
     """Функциональный shortcut для единичного запуска."""
 
-    return Sandbox(timeout=timeout).execute(
+    return Sandbox(timeout=timeout, bonus_api_enabled=bonus_api_enabled).execute(
         source,
         expected_output=expected_output,
         expected_variables=expected_variables,
@@ -1080,8 +1176,12 @@ __all__ = [
     "SandboxOutputLimitError",
     "SandboxResult",
     "SandboxSecurityError",
+    "bruteforce_pin",
+    "decode_base64",
     "decrypt_caesar",
     "execute_code",
+    "generate_wordlist",
+    "hash_md5",
     "ping",
     "scan_ports",
     "send_payload",
