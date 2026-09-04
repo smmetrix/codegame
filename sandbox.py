@@ -37,7 +37,16 @@ MAX_SERIALIZED_ITEMS: Final[int] = 500
 MAX_VALUE_DEPTH: Final[int] = 8
 
 _ALLOWED_MODULES: Final[frozenset[str]] = frozenset(
-    {"json", "math", "re", "statistics", "string"}
+    {
+        "base64",
+        "hashlib",
+        "json",
+        "math",
+        "re",
+        "statistics",
+        "string",
+        "threading",
+    }
 )
 _BLOCKED_MODULES: Final[frozenset[str]] = frozenset(
     {
@@ -59,7 +68,6 @@ _BLOCKED_MODULES: Final[frozenset[str]] = frozenset(
         "subprocess",
         "sys",
         "tempfile",
-        "threading",
         "traceback",
         "types",
     }
@@ -303,8 +311,10 @@ def scan_ports(ip: str) -> list[int]:
             "127.0.0.1": (22, 80, 443, 8080),
             "::1": (22, 80, 443, 8080),
             "localhost": (22, 80, 443, 8080),
+            "bank-gateway.local": (22, 443, 8443, 31337),
             "cyberdeck.local": (22, 80, 443, 31337),
             "vault.greyhat": (21, 22, 443, 3306),
+            "victim-node.local": (22, 443, 5432),
         }
     )
     if normalized in known_hosts:
@@ -400,13 +410,32 @@ _SAFE_MODULES: dict[str, _SafeModule] | None = None
 def _build_safe_modules() -> dict[str, _SafeModule]:
     """Creates curated facades; raw modules are never returned to user code."""
 
+    import base64
+    import hashlib
     import json
     import math as math_module
     import re as re_module
     import statistics
     import string
+    import threading
 
     selected_names: Mapping[str, tuple[str, ...]] = {
+        "base64": (
+            "b64decode",
+            "b64encode",
+            "standard_b64decode",
+            "standard_b64encode",
+            "urlsafe_b64decode",
+            "urlsafe_b64encode",
+        ),
+        "hashlib": (
+            "md5",
+            "sha1",
+            "sha224",
+            "sha256",
+            "sha384",
+            "sha512",
+        ),
         "json": (
             "JSONDecodeError",
             "JSONDecoder",
@@ -482,12 +511,24 @@ def _build_safe_modules() -> dict[str, _SafeModule]:
             "punctuation",
             "whitespace",
         ),
+        "threading": (
+            "Barrier",
+            "BoundedSemaphore",
+            "Event",
+            "Lock",
+            "RLock",
+            "Semaphore",
+            "Thread",
+        ),
     }
     real_modules: Mapping[str, Any] = {
+        "base64": base64,
+        "hashlib": hashlib,
         "json": json,
         "re": re_module,
         "statistics": statistics,
         "string": string,
+        "threading": threading,
     }
     facades = {
         name: _SafeModule(
