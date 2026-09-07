@@ -40,7 +40,13 @@ from darknet_shop import (
     PurchaseResult,
     UpgradeNotOwnedError,
 )
-from game_state import GameState, GameStateError, MissionStatus
+from game_state import (
+    SKILL_LEVELS,
+    GameState,
+    GameStateError,
+    InsufficientFundsError,
+    MissionStatus,
+)
 from minigames import (
     CAMERA_GAME_ID,
     SOCIAL_GAME_ID,
@@ -48,8 +54,14 @@ from minigames import (
     MinigameResult,
     SocialEngineeringGame,
 )
-from missions_db import MISSION_BY_ID, MISSIONS, Mission, get_mission
+from missions_db import (
+    MISSION_BY_ID,
+    Mission,
+    adapt_missions,
+    validate_senior_efficiency,
+)
 from sandbox import Sandbox, SandboxResult, scan_ports
+from skill_select import SkillSelectWindow
 from ui import CodeEditor, CyberdeckSidebar, MissionPanel, TerminalLevel, TerminalView
 
 
@@ -79,7 +91,7 @@ class SaveGameError(Exception):
 class GreyHatApp(ctk.CTk):
     """Главное окно, связывающее state, Sandbox, missions и весь UI."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, selected_skill_level: str | None = None) -> None:
         super().__init__()
         self.title(f"{APP_NAME} // v{APP_VERSION}")
         self.geometry("1720x980")
@@ -93,16 +105,27 @@ class GreyHatApp(ctk.CTk):
             self.code_buffers,
             self.completed_minigames,
             self.overclock_used,
+            self.paid_hints,
             self.nickname,
             saved_mission_id,
             self._load_warning,
         ) = self._load_savegame()
+        if selected_skill_level is not None:
+            if selected_skill_level not in SKILL_LEVELS:
+                raise ValueError(f"Неизвестный skill level: {selected_skill_level}")
+            self.game_state.skill_level = selected_skill_level
+        self.missions = adapt_missions(
+            self.game_state.skill_level,
+            timer_multiplier=self.game_state.get_timer_multiplier(),
+        )
+        self.mission_by_id = {mission.id: mission for mission in self.missions}
         self.shop = DarkNetShop(self.game_state)
         self.current_mission: Mission | None = None
         self._running = False
         self._closing = False
         self._active_timer_mission_id: str | None = None
         self._trace_failed_missions: set[str] = set()
+        self._failed_attempt_counts: dict[str, int] = {}
         self._result_queue: queue.SimpleQueue[tuple[Mission, str, SandboxResult]] = (
             queue.SimpleQueue()
         )
@@ -280,35 +303,45 @@ class GreyHatApp(ctk.CTk):
     # ------------------------------------------------------------------
 
     def _normalize_mission_progress(self) -> None:
-        for mission in MISSIONS:
+        for mission in self.missions:
             if mission.id not in self.game_state.missions:
                 self.game_state.set_mission_status(mission.id, MissionStatus.LOCKED)
-        first = MISSIONS[0]
+        if self.game_state.skill_level == "zero":
+            for mission in self.missions:
+                if (
+                    self.game_state.get_mission_status(mission.id)
+                    is MissionStatus.LOCKED
+                ):
+                    self.game_state.set_mission_status(
+                        mission.id, MissionStatus.AVAILABLE
+                    )
+            return
+        first = self.missions[0]
         if self.game_state.get_mission_status(first.id) is MissionStatus.LOCKED:
             self.game_state.set_mission_status(first.id, MissionStatus.AVAILABLE)
-        for index, mission in enumerate(MISSIONS[:-1]):
+        for index, mission in enumerate(self.missions[:-1]):
             if (
                 self.game_state.get_mission_status(mission.id)
                 is MissionStatus.COMPLETED
             ):
-                next_id = MISSIONS[index + 1].id
+                next_id = self.missions[index + 1].id
                 if self.game_state.get_mission_status(next_id) is MissionStatus.LOCKED:
                     self.game_state.set_mission_status(next_id, MissionStatus.AVAILABLE)
 
     def _populate_missions(self) -> None:
         self.sidebar.set_missions(
-            MISSIONS,
+            self.missions,
             self.game_state.missions,
             selected_id=None,
         )
 
     def _select_initial_mission(self, saved_mission_id: str | None) -> None:
-        if saved_mission_id in MISSION_BY_ID:
+        if saved_mission_id in self.mission_by_id:
             saved_status = self.game_state.get_mission_status(saved_mission_id)
             if saved_status is not MissionStatus.LOCKED:
-                self._select_mission(get_mission(saved_mission_id))
+                self._select_mission(self.mission_by_id[saved_mission_id])
                 return
-        for mission in MISSIONS:
+        for mission in self.missions:
             status = self.game_state.get_mission_status(mission.id)
             if status in {
                 MissionStatus.AVAILABLE,
@@ -317,7 +350,7 @@ class GreyHatApp(ctk.CTk):
             }:
                 self._select_mission(mission)
                 return
-        self._select_mission(MISSIONS[-1])
+        self._select_mission(self.missions[-1])
 
     def _select_mission(self, mission: Mission) -> None:
         if self._running:
@@ -347,6 +380,22 @@ class GreyHatApp(ctk.CTk):
             self.code_buffers.get(mission.id, mission.starter_code), mark_clean=True
         )
         self.mission_panel.set_mission(mission)
+        hint_cost = self.game_state.get_hint_cost()
+        if self.game_state.skill_level == "senior":
+            self.mission_panel.configure_hint_access(enabled=False)
+            self.editor.hint_button.configure(text="NO HINTS", state="disabled")
+        else:
+            displayed_cost = (
+                hint_cost if hint_cost > 0 and mission.id not in self.paid_hints else 0
+            )
+            self.mission_panel.configure_hint_access(
+                enabled=True,
+                cost=displayed_cost,
+            )
+            price_text = f" // {displayed_cost} BTC" if displayed_cost else ""
+            self.editor.hint_button.configure(
+                text=f"ПОДСКАЗКА{price_text}", state="normal"
+            )
         self.sidebar.mission_list.set_selected(mission.id)
         self.sidebar.mission_list.update_status(
             mission.id, self.game_state.get_mission_status(mission.id)
@@ -356,6 +405,19 @@ class GreyHatApp(ctk.CTk):
         )
         self._refresh_overclock_button()
         self._save_game(show_feedback=False)
+        if self.game_state.skill_level == "zero":
+            self.after(
+                450,
+                lambda mission_id=mission.id: self._show_auto_hint(mission_id),
+            )
+
+    def _show_auto_hint(self, mission_id: str) -> None:
+        if (
+            self.current_mission is not None
+            and self.current_mission.id == mission_id
+            and not self.mission_panel.hint_visible
+        ):
+            self.mission_panel.show_hint()
 
     def _run_code(self) -> None:
         if self._running or self.current_mission is None:
@@ -440,8 +502,21 @@ class GreyHatApp(ctk.CTk):
             return
         if not result.success:
             self.terminal.write_error(result.error or "Неизвестная ошибка Sandbox")
-            self.sidebar.trace_meter.add_trace(8.0)
+            self.sidebar.trace_meter.add_trace(self._trace_penalty(8.0, mission))
             self._highlight_sandbox_error(result.error)
+            self._check_trace_limit(mission)
+            return
+
+        if self.game_state.skill_level == "senior" and not validate_senior_efficiency(
+            mission.id, source
+        ):
+            self.terminal.write(
+                "SENIOR CHECK FAILED // обнаружена очевидная сложность O(n²). "
+                "Используйте один линейный проход.",
+                TerminalLevel.WARNING,
+                animate=False,
+            )
+            self.sidebar.trace_meter.add_trace(self._trace_penalty(15.0, mission))
             self._check_trace_limit(mission)
             return
 
@@ -451,7 +526,7 @@ class GreyHatApp(ctk.CTk):
                 TerminalLevel.WARNING,
                 animate=False,
             )
-            self.sidebar.trace_meter.add_trace(12.0)
+            self.sidebar.trace_meter.add_trace(self._trace_penalty(12.0, mission))
             self._check_trace_limit(mission)
             return
 
@@ -500,18 +575,19 @@ class GreyHatApp(ctk.CTk):
         self.sidebar.trace_meter.stop_countdown()
         self._active_timer_mission_id = None
         self._trace_failed_missions.discard(mission.id)
+        self._failed_attempt_counts.pop(mission.id, None)
         self._refresh_all()
         self._save_game(show_feedback=False)
 
-        if mission.id == MISSIONS[-1].id:
+        if mission.id == self.missions[-1].id:
             self._show_finale(result)
 
     def _unlock_next_mission(self, mission: Mission) -> None:
-        index = MISSIONS.index(mission)
+        index = self.missions.index(mission)
         self.sidebar.mission_list.update_status(mission.id, MissionStatus.COMPLETED)
-        if index + 1 >= len(MISSIONS):
+        if index + 1 >= len(self.missions):
             return
-        next_mission = MISSIONS[index + 1]
+        next_mission = self.missions[index + 1]
         if self.game_state.get_mission_status(next_mission.id) is MissionStatus.LOCKED:
             self.game_state.set_mission_status(next_mission.id, MissionStatus.AVAILABLE)
             self.sidebar.mission_list.update_status(
@@ -530,6 +606,24 @@ class GreyHatApp(ctk.CTk):
             return rule
         choice = result.variables.get("choice")
         return rule.get(str(choice), 0)
+
+    def _trace_penalty(self, base_penalty: float, mission: Mission) -> float:
+        skill_multiplier = {
+            "zero": 0.5,
+            "beginner": 0.75,
+            "practice": 1.0,
+            "advanced": 1.5,
+            "senior": 2.0,
+        }[self.game_state.skill_level]
+        adaptive_firewall = 1.0
+        if mission.id == "m14_bank_firewall" and self.game_state.skill_level in {
+            "advanced",
+            "senior",
+        }:
+            attempts = self._failed_attempt_counts.get(mission.id, 0) + 1
+            self._failed_attempt_counts[mission.id] = attempts
+            adaptive_firewall += min(0.75, attempts * 0.15)
+        return base_penalty * skill_multiplier * adaptive_firewall
 
     def _highlight_sandbox_error(self, error: str | None) -> None:
         if not error:
@@ -569,26 +663,51 @@ class GreyHatApp(ctk.CTk):
     # ------------------------------------------------------------------
 
     def _show_hint(self) -> None:
-        if self.current_mission is None:
-            return
-        self.mission_panel.show_hint()
-        if self.shop.copilot_enabled:
+        if self.current_mission is not None:
+            self.mission_panel.show_hint()
+
+    def _on_hint_revealed(self, mission: Mission) -> bool:
+        if self.game_state.skill_level == "senior":
             self.terminal.write(
-                self.shop.copilot_hint(self.current_mission),
-                TerminalLevel.INFO,
-                animate=True,
+                "SENIOR PROTOCOL // канал подсказок физически отключен.",
+                TerminalLevel.WARNING,
+                animate=False,
             )
-        else:
-            self.terminal.write(
-                self.current_mission.hint,
-                TerminalLevel.INFO,
-                animate=True,
+            return False
+
+        hint_cost = self.game_state.get_hint_cost()
+        if mission.id not in self.paid_hints and hint_cost > 0:
+            try:
+                self.game_state.spend_bitcoins(hint_cost)
+            except InsufficientFundsError:
+                self.terminal.write(
+                    f"HINT DENIED // требуется {hint_cost} BTC, доступно "
+                    f"{self.game_state.bitcoins} BTC.",
+                    TerminalLevel.WARNING,
+                    animate=False,
+                )
+                return False
+            self.paid_hints.add(mission.id)
+            self.mission_panel.configure_hint_access(enabled=True, cost=0)
+            self.editor.hint_button.configure(text="ПОДСКАЗКА")
+            self.terminal.write_system(
+                f"Hint channel opened for {mission.id}: -{hint_cost} BTC.",
+                animate=False,
+            )
+            self._refresh_all()
+            self._save_game(show_feedback=False)
+        elif hint_cost == 0:
+            self.terminal.write_system(
+                f"Hint channel opened for {mission.id}: free.", animate=False
             )
 
-    def _on_hint_revealed(self, mission: Mission) -> None:
-        self.terminal.write_system(
-            f"Hint channel opened for {mission.id}.", animate=False
+        hint_text = (
+            self.shop.copilot_hint(mission)
+            if self.shop.copilot_enabled
+            else mission.hint
         )
+        self.terminal.write(hint_text, TerminalLevel.INFO, animate=True)
+        return True
 
     def _reset_code(self) -> None:
         if self.current_mission is None:
@@ -823,8 +942,9 @@ class GreyHatApp(ctk.CTk):
             )
         if command == "status":
             return (
-                f"rank={self.game_state.rank.value} exp={self.game_state.exp} "
-                f"btc={self.game_state.bitcoins} karma={self.game_state.karma} "
+                f"rank={self.game_state.rank.value} skill={self.game_state.skill_level} "
+                f"exp={self.game_state.exp} btc={self.game_state.bitcoins} "
+                f"karma={self.game_state.karma} "
                 f"path={self.game_state.karma_path.value} achievements="
                 f"{self.achievements.unlocked_count}/5"
             )
@@ -832,7 +952,7 @@ class GreyHatApp(ctk.CTk):
             return "\n".join(
                 f"{index:02d} {self.game_state.get_mission_status(mission.id).value:11s} "
                 f"{mission.title}"
-                for index, mission in enumerate(MISSIONS, start=1)
+                for index, mission in enumerate(self.missions, start=1)
             )
         if command == "mission" and len(parts) == 2:
             return self._terminal_select_mission(parts[1])
@@ -878,15 +998,15 @@ class GreyHatApp(ctk.CTk):
 
     def _terminal_select_mission(self, token: str) -> str:
         mission: Mission | None = None
-        if token in MISSION_BY_ID:
-            mission = MISSION_BY_ID[token]
+        if token in self.mission_by_id:
+            mission = self.mission_by_id[token]
         else:
             try:
                 index = int(token) - 1
             except ValueError:
                 index = -1
-            if 0 <= index < len(MISSIONS):
-                mission = MISSIONS[index]
+            if 0 <= index < len(self.missions):
+                mission = self.missions[index]
         if mission is None:
             return "Mission must be an id or number from 1 to 15."
         if self.game_state.get_mission_status(mission.id) is MissionStatus.LOCKED:
@@ -904,7 +1024,7 @@ class GreyHatApp(ctk.CTk):
 
     def _refresh_all(self) -> None:
         self.sidebar.update_player(self.game_state, nickname=self.nickname)
-        for mission in MISSIONS:
+        for mission in self.missions:
             self.sidebar.mission_list.update_status(
                 mission.id, self.game_state.get_mission_status(mission.id)
             )
@@ -912,6 +1032,7 @@ class GreyHatApp(ctk.CTk):
             self.sidebar.mission_list.set_selected(self.current_mission.id)
         self.summary_label.configure(
             text=(
+                f"{self.game_state.skill_level.upper()} // "
                 f"{self.game_state.bitcoins} BTC // {self.game_state.exp} EXP // "
                 f"ACH {self.achievements.unlocked_count}/5"
             )
@@ -945,6 +1066,11 @@ class GreyHatApp(ctk.CTk):
             f"GreyHat Cyberdeck OS v{APP_VERSION} initialized.", animate=True
         )
         self.terminal.write_system(
+            f"Operator profile: {self.game_state.skill_level.upper()} // "
+            f"timer ×{self.game_state.get_timer_multiplier():g}.",
+            animate=True,
+        )
+        self.terminal.write_system(
             "Sandbox isolation online. Filesystem and real network are blocked.",
             animate=True,
         )
@@ -966,6 +1092,7 @@ class GreyHatApp(ctk.CTk):
             "code_buffers": dict(sorted(self.code_buffers.items())),
             "completed_minigames": sorted(self.completed_minigames),
             "overclock_used": sorted(self.overclock_used),
+            "paid_hints": sorted(self.paid_hints),
             "nickname": self.nickname,
             "selected_mission_id": (
                 self.current_mission.id if self.current_mission is not None else None
@@ -1008,6 +1135,7 @@ class GreyHatApp(ctk.CTk):
         dict[str, str],
         set[str],
         set[str],
+        set[str],
         str,
         str | None,
         str | None,
@@ -1016,6 +1144,7 @@ class GreyHatApp(ctk.CTk):
             GameState(),
             AchievementManager(),
             {},
+            set(),
             set(),
             set(),
             "ghost",
@@ -1049,8 +1178,11 @@ class GreyHatApp(ctk.CTk):
             }
             raw_minigames = data.get("completed_minigames", [])
             raw_overclock = data.get("overclock_used", [])
-            if not isinstance(raw_minigames, list) or not isinstance(
-                raw_overclock, list
+            raw_paid_hints = data.get("paid_hints", [])
+            if (
+                not isinstance(raw_minigames, list)
+                or not isinstance(raw_overclock, list)
+                or not isinstance(raw_paid_hints, list)
             ):
                 raise SaveGameError("Некорректный список прогресса")
             completed_minigames = {
@@ -1061,6 +1193,7 @@ class GreyHatApp(ctk.CTk):
             overclock_used = {
                 str(item) for item in raw_overclock if item in MISSION_BY_ID
             }
+            paid_hints = {str(item) for item in raw_paid_hints if item in MISSION_BY_ID}
             nickname = data.get("nickname", "ghost")
             if not isinstance(nickname, str) or not nickname.strip():
                 nickname = "ghost"
@@ -1073,6 +1206,7 @@ class GreyHatApp(ctk.CTk):
                 code_buffers,
                 completed_minigames,
                 overclock_used,
+                paid_hints,
                 nickname,
                 selected_id,
                 None,
@@ -1096,6 +1230,7 @@ class GreyHatApp(ctk.CTk):
                 GameState(),
                 AchievementManager(),
                 {},
+                set(),
                 set(),
                 set(),
                 "ghost",
@@ -1139,7 +1274,14 @@ def main() -> int:
     ctk.set_appearance_mode(APPEARANCE_MODE)
     ctk.set_default_color_theme(COLOR_THEME)
     ctk.set_widget_scaling(UI_SCALE)
-    app = GreyHatApp()
+
+    selected_skill_level: str | None = None
+    if not SAVE_PATH.exists():
+        selected_skill_level = SkillSelectWindow().run()
+        if selected_skill_level is None:
+            return 0
+
+    app = GreyHatApp(selected_skill_level=selected_skill_level)
     app.mainloop()
     return 0
 

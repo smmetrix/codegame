@@ -8,11 +8,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import ast
+import io
+import tokenize
+from dataclasses import dataclass, replace
 from enum import IntEnum
 from types import MappingProxyType
 from typing import Callable, Final, Mapping
 
+from game_state import SKILL_LEVELS
 from sandbox import SandboxResult, scan_ports, send_payload
 
 
@@ -55,6 +59,7 @@ class Mission:
     karma_choice: str
     time_limit: int
     validator_func: MissionValidator
+    senior_trap: str = ""
 
     def __post_init__(self) -> None:
         if not self.id or not self.id.replace("_", "").isalnum():
@@ -65,7 +70,6 @@ class Mission:
             raise TypeError("tier должен быть значением MissionTier")
         for field_name in (
             "description",
-            "tutorial_text",
             "starter_code",
             "hint",
             "karma_choice",
@@ -73,6 +77,8 @@ class Mission:
             value = getattr(self, field_name)
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{field_name} должен быть непустой строкой")
+        if not isinstance(self.tutorial_text, str):
+            raise TypeError("tutorial_text должен быть строкой")
         for field_name in ("reward_exp", "reward_btc", "time_limit"):
             value = getattr(self, field_name)
             if isinstance(value, bool) or not isinstance(value, int):
@@ -81,6 +87,8 @@ class Mission:
                 raise ValueError(f"{field_name} не может быть отрицательным")
         if not callable(self.validator_func):
             raise TypeError("validator_func должен быть вызываемой функцией")
+        if not isinstance(self.senior_trap, str):
+            raise TypeError("senior_trap должен быть строкой")
 
     @property
     def tier_name(self) -> str:
@@ -324,7 +332,7 @@ def _validate_mission_15(result: SandboxResult) -> bool:
     )
 
 
-MISSIONS: Final[tuple[Mission, ...]] = (
+_BASE_MISSIONS: Final[tuple[Mission, ...]] = (
     Mission(
         id="m01_smart_bulb",
         title="Да будет свет",
@@ -1041,6 +1049,334 @@ MISSIONS: Final[tuple[Mission, ...]] = (
     ),
 )
 
+_SENIOR_TRAPS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "m01_smart_bulb": (
+            "В дампе есть ложное устройство LAMP-0. Не используй decoy_device в "
+            "итоговой строке: реальные параметры принадлежат только LAMP-7."
+        ),
+        "m02_sensor_types": (
+            "Строки '23.5', 'True' и '3' выглядят правильно при печати, но имеют "
+            "неверные типы. Сохрани точные float, bool и int без преобразования в str."
+        ),
+        "m03_pin_bypass": (
+            "Условие if entered_pin: является обманкой: любое ненулевое число даст "
+            "True. Сравни PIN со stored_pin оператором == и заполни обе ветки."
+        ),
+        "m04_block_list": (
+            "Одинаковые IP могут появляться повторно в других наборах. Здесь сохраняй "
+            "исходный порядок и не изменяй список attempts во время обхода."
+        ),
+        "m05_password_bruteforce": (
+            "Не запускай второй цикл для каждого кандидата вручную. Используй один "
+            "while и генератор в sum; явная вложенная пара циклов считается O(n²)."
+        ),
+        "m06_subnet_scanner": (
+            "Не сканируй один host повторно при проверке порта 22. Сохрани ports в "
+            "scan_report и используй тот же список для определения уязвимости."
+        ),
+        "m07_database_roles": (
+            "Роли идут не по алфавиту. Не сортируй records и не делай отдельный проход "
+            "для каждой роли: решение должно группировать данные за один проход O(n)."
+        ),
+        "m08_contact_cleanup": (
+            "Строка invalid-address не содержит @. Сначала проверь count('@'), иначе "
+            "распаковка split завершится ошибкой. Повторные полные проходы запрещены."
+        ),
+        "m09_log_filter": (
+            "Сообщение лога потенциально содержит символ |. Используй split('|', 2), "
+            "иначе скрытая строка разобьется больше чем на три части."
+        ),
+        "m10_caesar_function": (
+            "Параметр функции называется amount, а глобальная переменная — shift. "
+            "Не подменяй параметр глобальным значением: функция должна быть повторяемой."
+        ),
+        "m11_base64_decoder": (
+            "Base64 возвращает bytes. Вызов str(decoded_bytes) создаст текст вида "
+            "b'...'; требуется настоящее decode('utf-8') и один split по двоеточию."
+        ),
+        "m12_md5_cracker": (
+            "target_hash уже является hex-строкой. Не хешируй его повторно и не "
+            "сравнивай bytes с str. Заверши поиск сразу после первого совпадения."
+        ),
+        "m13_threaded_bruteforce": (
+            "Создание нового потока для каждого из 201 кандидата является ловушкой. "
+            "Нужно ровно четыре потока и четыре непересекающихся среза списка."
+        ),
+        "m14_bank_firewall": (
+            "Порт 31337 намеренно выглядит привлекательным, но должен быть blocked. "
+            "Политику построй за один проход, а bypass выбери только из allowed."
+        ),
+        "m15_final_choice": (
+            "Ветка else не должна молча принимать произвольный action. Секретная цель: "
+            "сохрани O(n) обработку records и не отправляй payload больше одного раза."
+        ),
+    }
+)
+
+_SKILL_TIMER_MULTIPLIERS: Final[Mapping[str, float]] = MappingProxyType(
+    {
+        "zero": 3.0,
+        "beginner": 2.0,
+        "practice": 1.0,
+        "advanced": 0.7,
+        "senior": 0.4,
+    }
+)
+
+_SENIOR_DECOYS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "m01_smart_bulb": 'decoy_device = "LAMP-0"\n',
+        "m02_sensor_types": 'decoy_temperature = "23.5"\n',
+        "m03_pin_bypass": "decoy_pin = 1111\n",
+        "m04_block_list": 'decoy_ip = "10.0.0.13"\n',
+        "m05_password_bruteforce": 'decoy_password = "admin"\n',
+        "m06_subnet_scanner": 'decoy_host = "127.0.0.1"\n',
+        "m07_database_roles": 'decoy_role = {"name": "root", "access": True}\n',
+        "m08_contact_cleanup": 'decoy_contact = "root@localhost"\n',
+        "m09_log_filter": 'decoy_level = "DEBUG"\n',
+        "m10_caesar_function": "decoy_shift = 13\n",
+        "m11_base64_decoder": 'decoy_encoding = "ascii"\n',
+        "m12_md5_cracker": 'decoy_hash = "d41d8cd98f00b204e9800998ecf8427e"\n',
+        "m13_threaded_bruteforce": "decoy_workers = 201\n",
+        "m14_bank_firewall": "decoy_port = 31337\n",
+        "m15_final_choice": 'decoy_action = "leak"\n',
+    }
+)
+
+_BEGINNER_STARTER_OVERRIDES: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "m01_smart_bulb": (
+            'device = "LAMP-7"  # Имя устройства уже найдено.\n'
+            "brightness = 0  # Замени ноль на число 100 без кавычек.\n"
+            'choice = "help"  # Можно заменить на "sell".\n\n'
+            "# Собери вывод: LAMP-7 brightness=100% action=help\n"
+            'print(f"{device} brightness={brightness}% action={choice}")\n'
+        ),
+        "m02_sensor_types": (
+            "temperature = 23.5  # float\n"
+            "online = True  # bool\n"
+            "retries = 3  # int\n"
+            'room = "unknown"  # Замени на kitchen.\n\n'
+            'print(f"TEMP={temperature} ONLINE={online} RETRIES={retries} ROOM={room}")\n'
+        ),
+        "m03_pin_bypass": (
+            "stored_pin = 7319\n"
+            "entered_pin = 0  # Впиши найденный PIN.\n"
+            "if entered_pin == stored_pin:\n"
+            "    access = True\n"
+            '    message = "ACCESS GRANTED"\n'
+            "else:\n"
+            "    access = False\n"
+            '    message = "ACCESS DENIED"\n'
+            "print(message)\n"
+        ),
+    }
+)
+
+
+def _guidance_for_line(line: str) -> str:
+    stripped = line.strip()
+    if not stripped:
+        return "# Пустая строка отделяет этапы решения."
+    if stripped.startswith("#"):
+        return line
+    if stripped.startswith("import ") or stripped.startswith("from "):
+        note = "подключаем безопасный модуль"
+    elif stripped.startswith("def "):
+        note = "объявляем функцию"
+    elif stripped.startswith(("for ", "while ")):
+        note = "начинаем цикл"
+    elif stripped.startswith(("if ", "elif ", "else:")):
+        note = "проверяем условие"
+    elif stripped.startswith("return"):
+        note = "возвращаем результат"
+    elif "print(" in stripped:
+        note = "выводим результат в терминал"
+    elif "=" in stripped:
+        note = "сохраняем значение в переменную"
+    elif stripped[0] in "]})":
+        note = "закрываем структуру данных"
+    else:
+        note = "выполняем следующий шаг"
+    return f"{line}  # {note}"
+
+
+def _add_line_guidance(starter_code: str) -> str:
+    return (
+        "\n".join(_guidance_for_line(line) for line in starter_code.splitlines()) + "\n"
+    )
+
+
+def _strip_instruction_comments(starter_code: str) -> str:
+    """Удаляет полноценные и inline-комментарии, не затрагивая ``#`` в строках."""
+
+    source = io.StringIO(starter_code)
+    tokens = (
+        token_info
+        for token_info in tokenize.generate_tokens(source.readline)
+        if token_info.type != tokenize.COMMENT
+    )
+    without_comments = tokenize.untokenize(tokens)
+    lines = [line.rstrip() for line in without_comments.splitlines()]
+    while lines and not lines[-1]:
+        lines.pop()
+    return "\n".join(lines) + "\n"
+
+
+def _short_tutorial(tutorial_text: str) -> str:
+    paragraphs = [part.strip() for part in tutorial_text.split("\n\n") if part.strip()]
+    return "\n\n".join(paragraphs[:2])
+
+
+def adapt_mission(
+    mission: Mission,
+    skill_level: str,
+    *,
+    timer_multiplier: float | None = None,
+) -> Mission:
+    """Возвращает неизменяемую копию миссии для уровня игрока."""
+
+    if skill_level not in SKILL_LEVELS:
+        allowed = ", ".join(SKILL_LEVELS)
+        raise ValueError(f"Неизвестный skill_level; доступны: {allowed}")
+    multiplier = (
+        _SKILL_TIMER_MULTIPLIERS[skill_level]
+        if timer_multiplier is None
+        else float(timer_multiplier)
+    )
+    if multiplier <= 0:
+        raise ValueError("timer_multiplier должен быть положительным")
+    adapted_time = (
+        0
+        if mission.time_limit == 0
+        else max(8, int(round(mission.time_limit * multiplier)))
+    )
+
+    tutorial = mission.tutorial_text
+    starter = mission.starter_code
+    description = mission.description
+    if skill_level == "zero":
+        tutorial = (
+            "РЕЖИМ ПЕРВОГО КОДА. Каждая строка стартового кода снабжена "
+            "комментарием. Читай программу сверху вниз: справа от символа # написано, "
+            "зачем нужен шаг. Ошибки безопасны и остаются внутри Sandbox.\n\n"
+            "ПОШАГОВЫЙ ПЛАН:\n"
+            "1. Прочитай условие и найди имена требуемых переменных.\n"
+            "2. Замени значения-заглушки в стартовом коде.\n"
+            "3. Нажми F5 и сравни вывод терминала с форматом в задании.\n"
+            "4. Если появилась ошибка, исправь указанную строку и запусти снова.\n"
+            "5. Не удаляй этические переменные help/sell: они меняют карму.\n\n"
+            f"{mission.tutorial_text}"
+        )
+        starter = _add_line_guidance(mission.starter_code)
+    elif skill_level == "beginner":
+        tutorial = mission.tutorial_text
+        starter = _BEGINNER_STARTER_OVERRIDES.get(mission.id, mission.starter_code)
+    elif skill_level == "practice":
+        tutorial = _short_tutorial(mission.tutorial_text)
+    elif skill_level == "advanced":
+        tutorial = ""
+        starter = _strip_instruction_comments(mission.starter_code)
+        if mission.id == "m14_bank_firewall":
+            description = (
+                f"{mission.description}\n\nADAPTIVE FIREWALL // каждая ошибка ускоряет Trace "
+                "Meter; повторяющиеся попытки получают повышенный штраф."
+            )
+    else:
+        tutorial = ""
+        starter = _SENIOR_DECOYS[mission.id] + _strip_instruction_comments(
+            mission.starter_code
+        )
+        description = (
+            f"{mission.description}\n\nSENIOR PROTOCOL // {mission.senior_trap}"
+        )
+
+    return replace(
+        mission,
+        description=description,
+        tutorial_text=tutorial,
+        starter_code=starter,
+        time_limit=adapted_time,
+    )
+
+
+def adapt_missions(
+    skill_level: str,
+    *,
+    timer_multiplier: float | None = None,
+) -> tuple[Mission, ...]:
+    return tuple(
+        adapt_mission(
+            mission,
+            skill_level,
+            timer_multiplier=timer_multiplier,
+        )
+        for mission in MISSIONS
+    )
+
+
+class _LoopComplexityVisitor(ast.NodeVisitor):
+    def __init__(self) -> None:
+        self.depth = 0
+        self.maximum_depth = 0
+        self.multi_generator_comprehension = False
+
+    def _visit_loop(self, node: ast.AST) -> None:
+        self.depth += 1
+        self.maximum_depth = max(self.maximum_depth, self.depth)
+        self.generic_visit(node)
+        self.depth -= 1
+
+    def visit_For(self, node: ast.For) -> None:
+        self._visit_loop(node)
+
+    def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
+        self._visit_loop(node)
+
+    def visit_While(self, node: ast.While) -> None:
+        self._visit_loop(node)
+
+    def visit_ListComp(self, node: ast.ListComp) -> None:
+        if len(node.generators) > 1:
+            self.multi_generator_comprehension = True
+        self.generic_visit(node)
+
+    def visit_SetComp(self, node: ast.SetComp) -> None:
+        if len(node.generators) > 1:
+            self.multi_generator_comprehension = True
+        self.generic_visit(node)
+
+    def visit_DictComp(self, node: ast.DictComp) -> None:
+        if len(node.generators) > 1:
+            self.multi_generator_comprehension = True
+        self.generic_visit(node)
+
+    def visit_GeneratorExp(self, node: ast.GeneratorExp) -> None:
+        if len(node.generators) > 1:
+            self.multi_generator_comprehension = True
+        self.generic_visit(node)
+
+
+def validate_senior_efficiency(mission_id: str, source_code: str) -> bool:
+    """Отклоняет очевидный O(n²), когда миссия решается за один проход."""
+
+    if mission_id not in MISSION_BY_ID or not isinstance(source_code, str):
+        return False
+    try:
+        tree = ast.parse(source_code, mode="exec")
+    except SyntaxError:
+        return False
+    visitor = _LoopComplexityVisitor()
+    visitor.visit(tree)
+    return visitor.maximum_depth <= 1 and not visitor.multi_generator_comprehension
+
+
+MISSIONS: Final[tuple[Mission, ...]] = tuple(
+    replace(mission, senior_trap=_SENIOR_TRAPS[mission.id])
+    for mission in _BASE_MISSIONS
+)
+
 MISSION_BY_ID: Final[Mapping[str, Mission]] = MappingProxyType(
     {mission.id: mission for mission in MISSIONS}
 )
@@ -1085,7 +1421,10 @@ __all__ = [
     "MissionTier",
     "MissionValidator",
     "TIER_NAMES",
+    "adapt_mission",
+    "adapt_missions",
     "get_mission",
     "get_missions_for_tier",
     "validate_mission",
+    "validate_senior_efficiency",
 ]

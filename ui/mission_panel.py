@@ -29,7 +29,7 @@ from missions_db import Mission, MissionTier, TIER_NAMES
 
 
 MissionSelectionCallback = Callable[[Mission], None]
-HintCallback = Callable[[Mission], None]
+HintCallback = Callable[[Mission], bool | None]
 TraceExpiredCallback = Callable[[], None]
 
 
@@ -872,9 +872,10 @@ class MissionBriefPanel(ctk.CTkScrollableFrame):
             font=FONT_SMALL,
         )
         self.hint_label.grid(row=0, column=0, padx=12, pady=10, sticky="ew")
+        self._hint_button_text = "ПОКАЗАТЬ ПОДСКАЗКУ"
         self.hint_button = ctk.CTkButton(
             hint_frame,
-            text="ПОКАЗАТЬ ПОДСКАЗКУ",
+            text=self._hint_button_text,
             width=160,
             height=30,
             fg_color="transparent",
@@ -939,7 +940,12 @@ class MissionBriefPanel(ctk.CTkScrollableFrame):
             )
         )
         self._set_text(self.description_box, mission.description)
-        self._set_text(self.tutorial_box, mission.tutorial_text)
+        tutorial_container = self.tutorial_box.master
+        if mission.tutorial_text:
+            tutorial_container.grid()
+            self._set_text(self.tutorial_box, mission.tutorial_text)
+        else:
+            tutorial_container.grid_remove()
         self._set_text(self.karma_box, mission.karma_choice)
         self.hide_hint()
 
@@ -951,17 +957,32 @@ class MissionBriefPanel(ctk.CTkScrollableFrame):
         textbox.configure(state="disabled")
         textbox.yview_moveto(0.0)
 
+    def configure_hint_access(self, *, enabled: bool, cost: int = 0) -> None:
+        if isinstance(cost, bool) or not isinstance(cost, int) or cost < 0:
+            raise ValueError("cost должен быть неотрицательным целым числом")
+        if enabled:
+            suffix = f" // {cost} BTC" if cost else ""
+            self._hint_button_text = f"ПОКАЗАТЬ ПОДСКАЗКУ{suffix}"
+            self.hint_button.configure(state="normal")
+        else:
+            self._hint_button_text = "ПОДСКАЗКИ ОТКЛЮЧЕНЫ"
+            self.hint_button.configure(state="disabled")
+        if not self._hint_visible:
+            self.hint_button.configure(text=self._hint_button_text)
+
     def toggle_hint(self) -> None:
         if self._mission is None:
             return
         if self._hint_visible:
             self.hide_hint()
             return
+        if self._on_hint_requested is not None:
+            allowed = self._on_hint_requested(self._mission)
+            if allowed is False:
+                return
         self._hint_visible = True
         self.hint_label.configure(text=self._mission.hint, text_color=ACCENT_CYAN)
         self.hint_button.configure(text="СКРЫТЬ ПОДСКАЗКУ")
-        if self._on_hint_requested is not None:
-            self._on_hint_requested(self._mission)
 
     def hide_hint(self) -> None:
         self._hint_visible = False
@@ -969,7 +990,7 @@ class MissionBriefPanel(ctk.CTkScrollableFrame):
             text="Подсказка скрыта. Сначала попробуйте решить задачу самостоятельно.",
             text_color=TEXT_MUTED,
         )
-        self.hint_button.configure(text="ПОКАЗАТЬ ПОДСКАЗКУ")
+        self.hint_button.configure(text=self._hint_button_text)
 
     @property
     def current_mission(self) -> Mission | None:
@@ -1151,6 +1172,13 @@ class MissionPanel(ctk.CTkFrame):
         self.tabs.set(self.CHEAT_TAB)
         if search is not None:
             self.cheat_sheet.set_search(search)
+
+    def configure_hint_access(self, *, enabled: bool, cost: int = 0) -> None:
+        self.brief.configure_hint_access(enabled=enabled, cost=cost)
+
+    @property
+    def hint_visible(self) -> bool:
+        return self.brief.hint_visible
 
 
 MissionInfoPanel = MissionPanel

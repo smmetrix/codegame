@@ -46,6 +46,30 @@ class KarmaPath(str, Enum):
     BLACK = "Черный"
 
 
+SKILL_LEVELS: tuple[str, ...] = (
+    "zero",
+    "beginner",
+    "practice",
+    "advanced",
+    "senior",
+)
+
+_SKILL_TIMER_MULTIPLIERS: dict[str, float] = {
+    "zero": 3.0,
+    "beginner": 2.0,
+    "practice": 1.0,
+    "advanced": 0.7,
+    "senior": 0.4,
+}
+
+_SKILL_HINT_COSTS: dict[str, int] = {
+    "zero": 0,
+    "beginner": 0,
+    "practice": 10,
+    "advanced": 30,
+    "senior": 0,
+}
+
 _RANK_THRESHOLDS: tuple[tuple[int, HackerRank], ...] = (
     (0, HackerRank.SCRIPT_KIDDIE),
     (250, HackerRank.CODE_BREAKER),
@@ -89,6 +113,7 @@ class GameState:
     purchased_upgrades: set[str] = field(default_factory=set)
     inventory: dict[str, int] = field(default_factory=dict)
     karma: int = 0
+    skill_level: str = "practice"
 
     SAVE_VERSION: ClassVar[int] = 1
     MIN_KARMA: ClassVar[int] = -100
@@ -100,6 +125,11 @@ class GameState:
         if isinstance(self.karma, bool) or not isinstance(self.karma, int):
             raise TypeError("karma должна быть целым числом")
         self.karma = max(self.MIN_KARMA, min(self.MAX_KARMA, self.karma))
+        if not isinstance(self.skill_level, str):
+            raise TypeError("skill_level должен быть строкой")
+        if self.skill_level not in SKILL_LEVELS:
+            allowed = ", ".join(SKILL_LEVELS)
+            raise ValueError(f"skill_level должен быть одним из: {allowed}")
 
         self.missions = {
             _require_identifier(mission_id, "mission_id"): self._coerce_status(status)
@@ -146,6 +176,21 @@ class GameState:
         if self.karma <= -25:
             return KarmaPath.BLACK
         return KarmaPath.GREY
+
+    def get_timer_multiplier(self) -> float:
+        """Возвращает множитель mission timer для выбранного уровня навыка."""
+
+        return _SKILL_TIMER_MULTIPLIERS[self.skill_level]
+
+    def get_hint_cost(self) -> int:
+        """Возвращает цену одной подсказки; Senior-подсказки отключает UI."""
+
+        return _SKILL_HINT_COSTS[self.skill_level]
+
+    def should_show_tutorial(self) -> bool:
+        """Продвинутый и Senior начинают без встроенного учебника."""
+
+        return self.skill_level in {"zero", "beginner", "practice"}
 
     @property
     def balance(self) -> int:
@@ -272,6 +317,7 @@ class GameState:
             "inventory": dict(sorted(self.inventory.items())),
             "karma": self.karma,
             "karma_path": self.karma_path.value,
+            "skill_level": self.skill_level,
         }
 
     @classmethod
@@ -302,6 +348,7 @@ class GameState:
                 purchased_upgrades=set(upgrades),
                 inventory=dict(inventory),
                 karma=data.get("karma", 0),
+                skill_level=data.get("skill_level", "practice"),
             )
         except (TypeError, ValueError) as exc:
             raise InvalidSaveError(f"Некорректные данные сохранения: {exc}") from exc
@@ -361,4 +408,5 @@ __all__ = [
     "InvalidSaveError",
     "KarmaPath",
     "MissionStatus",
+    "SKILL_LEVELS",
 ]
