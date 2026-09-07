@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.venv/
+.ruff_cache/
+savegame.json
+savegame.broken.json
+.greyhat_cyberdeck/
