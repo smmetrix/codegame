@@ -26,6 +26,7 @@ from config import (
     TEXT_PRIMARY,
     WARNING_RED,
 )
+from ui.animations import PulseEffect, blend_color
 
 
 EditorCallback = Callable[[], None]
@@ -95,6 +96,10 @@ class CodeEditor(ctk.CTkFrame):
         self._tab_size = tab_size
         self._highlight_job: str | None = None
         self._line_number_job: str | None = None
+        self._line_fade_jobs: list[str] = []
+        self._line_fade_generation = 0
+        self._known_line_count = 1
+        self._run_pulse = PulseEffect()
         self._destroyed = False
 
         self._editor_font = tkfont.Font(
@@ -445,10 +450,13 @@ class CodeEditor(ctk.CTkFrame):
         self._line_number_job = None
         if self._destroyed:
             return
+        self._cancel_line_number_fade()
         self.line_numbers.delete("all")
+        new_items: list[tuple[int, str]] = []
         try:
             index = self.text.index("@0,0")
             last_line = int(self.text.index("end-1c").split(".")[0])
+            self._known_line_count = min(self._known_line_count, last_line)
             digits = max(2, len(str(last_line)))
             gutter_width = self._line_number_font.measure("9" * digits) + 20
             self.line_numbers.configure(width=gutter_width)
@@ -459,19 +467,78 @@ class CodeEditor(ctk.CTkFrame):
                     break
                 y_position = display_info[1]
                 line_number = index.split(".")[0]
+                numeric_line = int(line_number)
                 current_line = self.text.index("insert").split(".")[0]
-                color = NEON_GREEN if line_number == current_line else TEXT_MUTED
-                self.line_numbers.create_text(
+                target_color = NEON_GREEN if line_number == current_line else TEXT_MUTED
+                is_new = numeric_line > self._known_line_count
+                item_id = self.line_numbers.create_text(
                     gutter_width - 10,
                     y_position,
                     anchor="ne",
                     text=line_number,
-                    fill=color,
+                    fill=_LINE_NUMBER_BG if is_new else target_color,
                     font=self._line_number_font,
                 )
+                if is_new:
+                    new_items.append((item_id, target_color))
                 index = self.text.index(f"{index}+1line")
         except (tk.TclError, ValueError):
             return
+        if new_items:
+            self._line_fade_generation += 1
+            generation = self._line_fade_generation
+            self._animate_line_numbers(
+                new_items,
+                step=0,
+                final_line_count=last_line,
+                generation=generation,
+            )
+        else:
+            self._known_line_count = last_line
+
+    def _animate_line_numbers(
+        self,
+        items: list[tuple[int, str]],
+        *,
+        step: int,
+        final_line_count: int,
+        generation: int,
+    ) -> None:
+        if self._destroyed or generation != self._line_fade_generation:
+            return
+        total_steps = 10
+        ratio = min(1.0, step / total_steps)
+        try:
+            for item_id, target_color in items:
+                self.line_numbers.itemconfigure(
+                    item_id,
+                    fill=blend_color(_LINE_NUMBER_BG, target_color, ratio),
+                )
+        except tk.TclError:
+            return
+        if step >= total_steps:
+            self._known_line_count = final_line_count
+            self._line_fade_jobs.clear()
+            return
+        job = self.after(
+            28,
+            lambda: self._animate_line_numbers(
+                items,
+                step=step + 1,
+                final_line_count=final_line_count,
+                generation=generation,
+            ),
+        )
+        self._line_fade_jobs.append(job)
+
+    def _cancel_line_number_fade(self) -> None:
+        self._line_fade_generation += 1
+        for job in self._line_fade_jobs:
+            try:
+                self.after_cancel(job)
+            except tk.TclError:
+                continue
+        self._line_fade_jobs.clear()
 
     def _highlight_current_line(self) -> None:
         self.text.tag_remove("current_line", "1.0", "end")
@@ -674,6 +741,15 @@ class CodeEditor(ctk.CTkFrame):
         state = "disabled" if running else "normal"
         label = "ВЫПОЛНЕНИЕ..." if running else "> ЗАПУСТИТЬ  F5"
         self.run_button.configure(state=state, text=label)
+        if running:
+            self._run_pulse.pulse(
+                self.run_button,
+                NEON_GREEN,
+                "#003311",
+                speed=500,
+            )
+        else:
+            self._run_pulse.stop(self.run_button)
         self.message_label.configure(
             text="SANDBOX EXECUTING" if running else "SANDBOXED PYTHON 3",
             text_color=WARNING_RED if running else TEXT_MUTED,
@@ -690,6 +766,8 @@ class CodeEditor(ctk.CTkFrame):
 
     def destroy(self) -> None:
         self._destroyed = True
+        self._run_pulse.stop_all()
+        self._cancel_line_number_fade()
         for job in (self._highlight_job, self._line_number_job):
             if job is not None:
                 try:

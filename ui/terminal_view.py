@@ -26,6 +26,7 @@ from config import (
     TEXT_PRIMARY,
     WARNING_RED,
 )
+from ui.animations import GlitchEffect, ProgressBarHack, ScreenShake, TypewriterEffect
 
 
 class TerminalLevel(str, Enum):
@@ -72,6 +73,46 @@ class _TerminalMessage:
     delay_ms: int
 
 
+class _TerminalTypewriterTarget:
+    """Text-range adapter used by the shared Typewriter/Glitch effects."""
+
+    def __init__(
+        self,
+        terminal: TerminalView,
+        tag: str,
+        *,
+        blink_cursor: bool,
+    ) -> None:
+        self.terminal = terminal
+        self.tag = tag
+        self.start_index = terminal.output.index("end-1c")
+        self.current_text = ""
+        self._typewriter_blink_steps = 2 if blink_cursor else 0
+
+    @property
+    def master(self) -> Any:
+        return self.terminal.output.master
+
+    def after(self, delay: int, callback: Callable[[], None]) -> str:
+        return str(self.terminal.after(delay, callback))
+
+    def after_cancel(self, job: str) -> None:
+        self.terminal.after_cancel(job)
+
+    def winfo_exists(self) -> bool:
+        return bool(self.terminal.winfo_exists())
+
+    def winfo_rgb(self, color: str) -> tuple[int, int, int]:
+        return self.terminal.winfo_rgb(color)
+
+    def _animation_get_text(self) -> str:
+        return self.current_text
+
+    def _animation_set_text(self, text: str) -> None:
+        self.current_text = text
+        self.terminal._replace_animation_segment(self.start_index, text, self.tag)
+
+
 class TerminalView(ctk.CTkFrame):
     """Консоль с цветными каналами, command history и typewriter effect.
 
@@ -85,7 +126,7 @@ class TerminalView(ctk.CTkFrame):
         *,
         command_handler: CommandHandler | None = None,
         prompt: str = "ghost@deck:~$",
-        typing_delay_ms: int = 9,
+        typing_delay_ms: int = 30,
         max_lines: int = MAX_TERMINAL_LINES,
         show_timestamps: bool = False,
         font_size: int = 13,
@@ -113,10 +154,12 @@ class TerminalView(ctk.CTkFrame):
         self._incoming: queue.SimpleQueue[_TerminalMessage] = queue.SimpleQueue()
         self._messages: deque[_TerminalMessage] = deque()
         self._active_message: _TerminalMessage | None = None
-        self._active_offset = 0
-        self._animation_job: str | None = None
+        self._active_target: _TerminalTypewriterTarget | None = None
+        self._effect_job: str | None = None
         self._incoming_job: str | None = None
         self._destroyed = False
+        self._typewriter = TypewriterEffect()
+        self._glitch = GlitchEffect()
         self._history: list[str] = []
         self._history_index = 0
 
@@ -221,6 +264,18 @@ class TerminalView(ctk.CTkFrame):
             button_hover_color=ACCENT_CYAN,
         )
         self.scrollbar.grid(row=0, column=1, sticky="ns")
+
+        self.hack_progress = ProgressBarHack(output_frame)
+        self.hack_progress.grid(
+            row=1,
+            column=0,
+            columnspan=2,
+            padx=7,
+            pady=(2, 7),
+            sticky="ew",
+        )
+        self.hack_progress.grid_remove()
+
         self.output.configure(yscrollcommand=self._on_output_yview)
         self.output.bind("<Control-l>", self._clear_shortcut)
         self.output.bind("<Command-l>", self._clear_shortcut)
@@ -330,8 +385,7 @@ class TerminalView(ctk.CTkFrame):
     def write_stderr(self, stderr: str, *, animate: bool = False) -> None:
         if not stderr:
             return
-        for line in stderr.rstrip("\n").splitlines():
-            self.write(line, TerminalLevel.ERROR, animate=animate)
+        self.write(stderr.rstrip("\n"), TerminalLevel.ERROR, animate=animate)
 
     def _enqueue_message(self, message: _TerminalMessage) -> None:
         if self._destroyed:
@@ -349,18 +403,20 @@ class TerminalView(ctk.CTkFrame):
             return
 
         self._active_message = self._messages.popleft()
-        self._active_offset = 0
         self.queue_label.configure(text="RX", text_color=NEON_GREEN)
         self._insert_message_header(self._active_message.level)
-
-        if self._active_message.animated:
-            self._schedule_animation(0)
-        else:
-            self._insert_output(
-                self._ensure_newline(self._active_message.text),
-                self._active_message.level.value,
-            )
-            self._finish_active_message()
+        self._active_target = _TerminalTypewriterTarget(
+            self,
+            self._active_message.level.value,
+            blink_cursor=self._active_message.animated,
+        )
+        delay = self._active_message.delay_ms if self._active_message.animated else 0
+        self._typewriter.typewrite(
+            self._active_target,
+            self._ensure_newline(self._active_message.text),
+            delay=delay,
+            callback=self._finish_typed_message,
+        )
 
     def _insert_message_header(self, level: TerminalLevel) -> None:
         self._set_output_state("normal")
@@ -373,47 +429,38 @@ class TerminalView(ctk.CTkFrame):
         self.output.insert("end", f"[{prefix}] ", "prefix")
         self._set_output_state("disabled")
 
-    def _schedule_animation(self, delay: int) -> None:
-        if self._destroyed:
-            return
-        self._animation_job = self.after(delay, self._type_next_chunk)
-
-    def _type_next_chunk(self) -> None:
-        self._animation_job = None
+    def _finish_typed_message(self) -> None:
         message = self._active_message
-        if self._destroyed or message is None:
+        target = self._active_target
+        if self._destroyed or message is None or target is None:
             return
-
-        rendered = self._ensure_newline(message.text)
-        remaining = len(rendered) - self._active_offset
-        if remaining <= 0:
-            self._finish_active_message()
+        if message.level is TerminalLevel.ERROR:
+            self._glitch.glitch(target, duration=420)
+            try:
+                ScreenShake.shake(self.winfo_toplevel(), intensity=5, duration=500)
+            except tk.TclError:
+                self.queue_label.configure(text="GLITCH", text_color=WARNING_RED)
+            self._effect_job = self.after(540, self._finish_active_message)
             return
-
-        chunk_size = self._chunk_size(len(rendered))
-        end_offset = min(len(rendered), self._active_offset + chunk_size)
-        chunk = rendered[self._active_offset : end_offset]
-        self._insert_output(chunk, message.level.value)
-        self._active_offset = end_offset
-
-        if self._active_offset >= len(rendered):
-            self._finish_active_message()
-        else:
-            self._schedule_animation(message.delay_ms)
-
-    @staticmethod
-    def _chunk_size(message_length: int) -> int:
-        if message_length <= 180:
-            return 1
-        if message_length <= 800:
-            return 3
-        return 8
+        self._finish_active_message()
 
     def _finish_active_message(self) -> None:
+        self._effect_job = None
         self._active_message = None
-        self._active_offset = 0
+        self._active_target = None
         self._trim_lines()
         self._start_next_message()
+
+    def _replace_animation_segment(self, start: str, text: str, tag: str) -> None:
+        if self._destroyed:
+            return
+        self._set_output_state("normal")
+        try:
+            self.output.delete(start, "end-1c")
+            self.output.insert(start, text, tag)
+            self.output.see("end")
+        finally:
+            self._set_output_state("disabled")
 
     def _insert_output(self, text: str, tag: str) -> None:
         self._set_output_state("normal")
@@ -510,14 +557,17 @@ class TerminalView(ctk.CTkFrame):
         return "break"
 
     def clear(self) -> None:
-        """Очищает экран и отменяет ожидающую typewriter animation."""
+        """Очищает экран и отменяет ожидающие визуальные эффекты."""
 
-        if self._animation_job is not None:
-            self.after_cancel(self._animation_job)
-            self._animation_job = None
+        if self._active_target is not None:
+            self._typewriter.stop(self._active_target)
+            self._glitch.stop(self._active_target)
+        if self._effect_job is not None:
+            self.after_cancel(self._effect_job)
+            self._effect_job = None
         self._messages.clear()
         self._active_message = None
-        self._active_offset = 0
+        self._active_target = None
         self._set_output_state("normal")
         self.output.delete("1.0", "end")
         self._set_output_state("disabled")
@@ -526,22 +576,45 @@ class TerminalView(ctk.CTkFrame):
     def flush_animation(self) -> None:
         """Мгновенно отображает активное сообщение и всю очередь."""
 
-        if self._animation_job is not None:
-            self.after_cancel(self._animation_job)
-            self._animation_job = None
-        if self._active_message is not None:
-            rendered = self._ensure_newline(self._active_message.text)
-            remainder = rendered[self._active_offset :]
-            if remainder:
-                self._insert_output(remainder, self._active_message.level.value)
+        if self._effect_job is not None:
+            self.after_cancel(self._effect_job)
+            self._effect_job = None
+        if self._active_target is not None:
+            self._glitch.stop(self._active_target)
+            self._typewriter.stop(self._active_target, finish=True)
+            self._active_target = None
             self._active_message = None
-            self._active_offset = 0
         while self._messages:
             message = self._messages.popleft()
             self._insert_message_header(message.level)
             self._insert_output(self._ensure_newline(message.text), message.level.value)
         self._trim_lines()
         self.queue_label.configure(text="IDLE", text_color=TEXT_MUTED)
+
+    def run_hack_progress(
+        self,
+        on_complete_callback: Callable[[], None],
+        duration: int = 3_000,
+        *,
+        success: bool = True,
+    ) -> None:
+        """Show breach progress, then invoke ``on_complete_callback`` on the UI loop."""
+
+        if not callable(on_complete_callback):
+            raise TypeError("on_complete_callback должен быть вызываемым")
+        self.hack_progress.set_outcome(success)
+        self.hack_progress.grid()
+        self.title_label.configure(
+            text="CYBERDECK TERMINAL // BREACH SEQUENCE",
+            text_color=NEON_GREEN if success else WARNING_RED,
+        )
+
+        def complete() -> None:
+            self.hack_progress.grid_remove()
+            if not self._destroyed:
+                on_complete_callback()
+
+        self.hack_progress.run_hack_progress(complete, duration=duration)
 
     def set_busy(self, busy: bool) -> None:
         """Показывает состояние Sandbox и блокирует command entry."""
@@ -552,7 +625,8 @@ class TerminalView(ctk.CTkFrame):
                 "CYBERDECK TERMINAL // SANDBOX EXECUTING"
                 if busy
                 else "CYBERDECK TERMINAL // LOCAL SANDBOX"
-            )
+            ),
+            text_color=WARNING_RED if busy else NEON_GREEN,
         )
         self.command_entry.configure(state="disabled" if busy else "normal")
 
@@ -573,7 +647,10 @@ class TerminalView(ctk.CTkFrame):
 
     def destroy(self) -> None:
         self._destroyed = True
-        for job in (self._animation_job, self._incoming_job):
+        self._typewriter.stop_all()
+        self._glitch.stop_all()
+        self.hack_progress.stop()
+        for job in (self._effect_job, self._incoming_job):
             if job is not None:
                 try:
                     self.after_cancel(job)

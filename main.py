@@ -63,6 +63,7 @@ from missions_db import (
 from sandbox import Sandbox, SandboxResult, scan_ports
 from skill_select import SkillSelectWindow
 from ui import CodeEditor, CyberdeckSidebar, MissionPanel, TerminalLevel, TerminalView
+from ui.animations import NotificationPopup
 
 
 SAVE_PATH: Final[Path] = Path(__file__).resolve().parent / "savegame.json"
@@ -134,6 +135,7 @@ class GreyHatApp(ctk.CTk):
         self._shop_window: DarkNetShopWindow | None = None
         self._minigame_menu: Any = None
         self._active_minigame: CameraBypassGame | SocialEngineeringGame | None = None
+        self.notifications = NotificationPopup(self)
 
         self._normalize_mission_progress()
         self._build_interface()
@@ -166,6 +168,7 @@ class GreyHatApp(ctk.CTk):
             nickname=self.nickname,
             on_mission_select=self._select_mission,
             on_trace_expired=self._on_trace_expired,
+            on_trace_danger=self._on_trace_danger,
         )
         self.sidebar.grid(row=0, column=0, padx=(0, 8), sticky="nsew")
 
@@ -188,7 +191,7 @@ class GreyHatApp(ctk.CTk):
         self.terminal = TerminalView(
             center,
             command_handler=self._handle_terminal_command,
-            typing_delay_ms=7,
+            typing_delay_ms=30,
             show_timestamps=True,
         )
         self.terminal.grid(row=1, column=0, pady=(6, 0), sticky="nsew")
@@ -487,49 +490,103 @@ class GreyHatApp(ctk.CTk):
     def _finish_execution(
         self, mission: Mission, source: str, result: SandboxResult
     ) -> None:
-        self._running = False
-        self.editor.set_running(False)
-        self.terminal.set_busy(False)
-        self.operation_label.configure(text="SYSTEM READY", text_color=ACCENT_CYAN)
         self.editor.clear_error_line()
+        self.sidebar.trace_meter.stop_countdown(clear_label=False)
+        self._active_timer_mission_id = None
 
-        self.terminal.write_stdout(result.output, animate=False)
-        self.terminal.write_stderr(result.stderr, animate=False)
         if mission.id in self._trace_failed_missions:
+            self._set_execution_idle()
             self.terminal.write_error(
                 "Результат отброшен: Trace Meter достиг критической отметки."
             )
             return
         if not result.success:
-            self.terminal.write_error(result.error or "Неизвестная ошибка Sandbox")
-            self.sidebar.trace_meter.add_trace(self._trace_penalty(8.0, mission))
-            self._highlight_sandbox_error(result.error)
-            self._check_trace_limit(mission)
+            self.terminal.run_hack_progress(
+                lambda: self._finish_sandbox_error(mission, result),
+                success=False,
+            )
             return
 
         if self.game_state.skill_level == "senior" and not validate_senior_efficiency(
             mission.id, source
         ):
-            self.terminal.write(
-                "SENIOR CHECK FAILED // обнаружена очевидная сложность O(n²). "
-                "Используйте один линейный проход.",
-                TerminalLevel.WARNING,
-                animate=False,
+            self.terminal.run_hack_progress(
+                lambda: self._finish_rejected_solution(
+                    mission,
+                    result,
+                    "SENIOR CHECK FAILED // обнаружена очевидная сложность O(n²). "
+                    "Используйте один линейный проход.",
+                    15.0,
+                ),
+                success=False,
             )
-            self.sidebar.trace_meter.add_trace(self._trace_penalty(15.0, mission))
-            self._check_trace_limit(mission)
             return
 
         if not mission.validate(result):
-            self.terminal.write(
-                "Код выполнен, но техническое задание еще не выполнено.",
-                TerminalLevel.WARNING,
-                animate=False,
+            self.terminal.run_hack_progress(
+                lambda: self._finish_rejected_solution(
+                    mission,
+                    result,
+                    "Код выполнен, но техническое задание еще не выполнено.",
+                    12.0,
+                ),
+                success=False,
             )
-            self.sidebar.trace_meter.add_trace(self._trace_penalty(12.0, mission))
-            self._check_trace_limit(mission)
             return
 
+        self.terminal.run_hack_progress(
+            lambda: self._finish_verified_solution(mission, source, result),
+            success=True,
+        )
+
+    def _set_execution_idle(self) -> None:
+        self._running = False
+        self.editor.set_running(False)
+        self.terminal.set_busy(False)
+        self.operation_label.configure(text="SYSTEM READY", text_color=ACCENT_CYAN)
+
+    def _finish_sandbox_error(
+        self,
+        mission: Mission,
+        result: SandboxResult,
+    ) -> None:
+        self._set_execution_idle()
+        self.terminal.write_stdout(result.output, animate=True)
+        self.terminal.write_stderr(result.stderr, animate=True)
+        self.terminal.write_error(result.error or "Неизвестная ошибка Sandbox")
+        self.sidebar.trace_meter.add_trace(self._trace_penalty(8.0, mission))
+        self._highlight_sandbox_error(result.error)
+        self._check_trace_limit(mission)
+
+    def _finish_rejected_solution(
+        self,
+        mission: Mission,
+        result: SandboxResult,
+        message: str,
+        trace_penalty: float,
+    ) -> None:
+        self._set_execution_idle()
+        self.terminal.write_stdout(result.output, animate=True)
+        self.terminal.write_stderr(result.stderr, animate=True)
+        self.terminal.write(message, TerminalLevel.WARNING, animate=True)
+        self.sidebar.trace_meter.add_trace(self._trace_penalty(trace_penalty, mission))
+        self._check_trace_limit(mission)
+
+    def _finish_verified_solution(
+        self,
+        mission: Mission,
+        source: str,
+        result: SandboxResult,
+    ) -> None:
+        if mission.id in self._trace_failed_missions:
+            self._set_execution_idle()
+            self.terminal.write_error(
+                "Доступ получен слишком поздно: Trace Meter уже заблокировал операцию."
+            )
+            return
+        self._set_execution_idle()
+        self.terminal.write_stdout(result.output, animate=True)
+        self.terminal.write_stderr(result.stderr, animate=True)
         self.terminal.write_success(f"MISSION VERIFIED // {mission.title}")
         self._complete_mission(mission, source, result)
 
@@ -554,6 +611,11 @@ class GreyHatApp(ctk.CTk):
                 f"KARMA {karma_delta:+d}",
                 TerminalLevel.SUCCESS,
                 animate=True,
+            )
+            self.notifications.show(
+                f"Миссия выполнена! +{mission.reward_exp} EXP, "
+                f"+{mission.reward_btc} BTC",
+                type="success",
             )
             self._unlock_next_mission(mission)
         else:
@@ -598,6 +660,10 @@ class GreyHatApp(ctk.CTk):
                 TerminalLevel.SYSTEM,
                 animate=True,
             )
+            self.notifications.show(
+                f"Новая миссия: {next_mission.title}",
+                type="info",
+            )
 
     @staticmethod
     def _calculate_karma(mission: Mission, result: SandboxResult) -> int:
@@ -641,6 +707,12 @@ class GreyHatApp(ctk.CTk):
             return
         self._fail_mission_by_trace(mission)
 
+    def _on_trace_danger(self, value: float) -> None:
+        self.notifications.show(
+            f"ВНИМАНИЕ: Trace Level {value:.0f}%!",
+            type="danger",
+        )
+
     def _on_trace_expired(self) -> None:
         if self.current_mission is not None:
             self._fail_mission_by_trace(self.current_mission)
@@ -654,6 +726,10 @@ class GreyHatApp(ctk.CTk):
         self.operation_label.configure(text="TRACE DETECTED", text_color=WARNING_RED)
         self.terminal.write_error(
             "TRACE LOCKED // операция провалена. Запустите миссию снова для новой попытки."
+        )
+        self.notifications.show(
+            "ОБНАРУЖЕНИЕ: операция провалена, цифровой след раскрыт!",
+            type="danger",
         )
         self._active_timer_mission_id = None
         self._save_game(show_feedback=False)
@@ -729,6 +805,11 @@ class GreyHatApp(ctk.CTk):
     def _on_shop_purchase(self, result: PurchaseResult) -> None:
         level = TerminalLevel.SUCCESS if result.success else TerminalLevel.WARNING
         self.terminal.write(result.message, level, animate=True)
+        if result.success:
+            self.notifications.show(
+                f"Новый инструмент в DarkNet: {result.upgrade.name}",
+                type="info",
+            )
         if result.success and result.upgrade.id == BRUTEFORCE_TOOLKIT_ID:
             self.terminal.write_system(
                 "BONUS API ONLINE // bruteforce_pin, generate_wordlist, hash_md5, decode_base64"
@@ -910,6 +991,10 @@ class GreyHatApp(ctk.CTk):
             TerminalLevel.SUCCESS,
             animate=True,
         )
+        self.notifications.show(
+            f"Симуляция завершена! Score: {result.score}{reward}",
+            type="success",
+        )
         self._refresh_all()
         self._save_game(show_feedback=False)
 
@@ -924,6 +1009,10 @@ class GreyHatApp(ctk.CTk):
                 f"+{achievement.reward_exp} EXP +{achievement.reward_btc} BTC",
                 TerminalLevel.SUCCESS,
                 animate=True,
+            )
+            self.notifications.show(
+                f"Достижение: {achievement.title}",
+                type="success",
             )
 
     # ------------------------------------------------------------------
@@ -1260,6 +1349,7 @@ class GreyHatApp(ctk.CTk):
             if not confirmed:
                 return
         self._closing = True
+        self.notifications.close_all()
         self._save_game(show_feedback=False)
         for job in (self._poll_job, self._autosave_job):
             if job is not None:

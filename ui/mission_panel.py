@@ -26,11 +26,13 @@ from config import (
 )
 from game_state import GameState, HackerRank, KarmaPath, MissionStatus
 from missions_db import Mission, MissionTier, TIER_NAMES
+from ui.animations import FadeInEffect, GlitchEffect, PulseEffect, TypewriterEffect
 
 
 MissionSelectionCallback = Callable[[Mission], None]
 HintCallback = Callable[[Mission], bool | None]
 TraceExpiredCallback = Callable[[], None]
+TraceDangerCallback = Callable[[float], None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -357,6 +359,7 @@ class TraceMeter(ctk.CTkFrame):
         *,
         danger_threshold: float = 70.0,
         on_expired: TraceExpiredCallback | None = None,
+        on_danger: TraceDangerCallback | None = None,
         **kwargs: Any,
     ) -> None:
         if not 1.0 <= danger_threshold <= 100.0:
@@ -369,13 +372,15 @@ class TraceMeter(ctk.CTkFrame):
 
         self._danger_threshold = danger_threshold
         self._on_expired = on_expired
+        self._on_danger = on_danger
         self._trace_value = 0.0
         self._deadline: float | None = None
         self._timer_duration = 0.0
         self._timer_job: str | None = None
-        self._blink_job: str | None = None
-        self._blink_on = False
+        self._danger_pulsing = False
+        self._danger_notified = False
         self._expired_notified = False
+        self._pulse = PulseEffect()
         self._destroyed = False
 
         self.grid_columnconfigure(0, weight=1)
@@ -444,9 +449,19 @@ class TraceMeter(ctk.CTkFrame):
     def set_trace(self, value: float) -> None:
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise TypeError("Trace value должен быть числом")
+        previous_value = self._trace_value
         self._trace_value = max(0.0, min(100.0, float(value)))
         self.progress.set(self._trace_value / 100.0)
         self.value_label.configure(text=f"DETECTION {self._trace_value:.0f}%")
+        if self._trace_value < self._danger_threshold:
+            self._danger_notified = False
+        if (
+            previous_value < 80.0 <= self._trace_value
+            and not self._danger_notified
+            and self._on_danger is not None
+        ):
+            self._danger_notified = True
+            self._on_danger(self._trace_value)
         self._refresh_danger_state()
 
     def add_trace(self, delta: float) -> float:
@@ -524,17 +539,29 @@ class TraceMeter(ctk.CTkFrame):
 
     def _is_danger(self) -> bool:
         timer_danger = self._deadline is not None and self.remaining_seconds <= 10.0
-        return self._trace_value >= self._danger_threshold or timer_danger
+        return self._trace_value > self._danger_threshold or timer_danger
 
     def _refresh_danger_state(self) -> None:
         if self._is_danger():
             self.status_label.configure(text="DANGER", text_color=WARNING_RED)
             self.value_label.configure(text_color=WARNING_RED)
             self.timer_label.configure(text_color=WARNING_RED)
-            if self._blink_job is None:
-                self._blink()
+            if not self._danger_pulsing:
+                self._danger_pulsing = True
+                self._pulse.pulse(
+                    self,
+                    WARNING_RED,
+                    "#3A1019",
+                    speed=500,
+                )
+                self._pulse.pulse(
+                    self.progress,
+                    WARNING_RED,
+                    "#541426",
+                    speed=500,
+                )
         else:
-            self._stop_blink()
+            self._stop_danger_pulse()
             self.status_label.configure(text="STEALTH", text_color=NEON_GREEN)
             self.value_label.configure(text_color=TEXT_MUTED)
             if self._deadline is not None:
@@ -542,31 +569,19 @@ class TraceMeter(ctk.CTkFrame):
             self.progress.configure(progress_color=NEON_GREEN)
             self.configure(border_color=BORDER_COLOR)
 
-    def _blink(self) -> None:
-        self._blink_job = None
-        if self._destroyed or not self._is_danger():
-            self._stop_blink()
-            return
-        self._blink_on = not self._blink_on
-        active_color = WARNING_RED if self._blink_on else "#7A1C34"
-        self.progress.configure(progress_color=active_color)
-        self.configure(border_color=active_color)
-        self._blink_job = self.after(320, self._blink)
-
-    def _stop_blink(self) -> None:
-        if self._blink_job is not None:
-            self.after_cancel(self._blink_job)
-            self._blink_job = None
-        self._blink_on = False
+    def _stop_danger_pulse(self) -> None:
+        self._pulse.stop(self)
+        self._pulse.stop(self.progress)
+        self._danger_pulsing = False
 
     def destroy(self) -> None:
         self._destroyed = True
-        for job in (self._timer_job, self._blink_job):
-            if job is not None:
-                try:
-                    self.after_cancel(job)
-                except tk.TclError:
-                    continue
+        self._stop_danger_pulse()
+        if self._timer_job is not None:
+            try:
+                self.after_cancel(self._timer_job)
+            except tk.TclError:
+                self._timer_job = None
         super().destroy()
 
 
@@ -764,6 +779,7 @@ class CyberdeckSidebar(ctk.CTkFrame):
         nickname: str = "ghost",
         on_mission_select: MissionSelectionCallback | None = None,
         on_trace_expired: TraceExpiredCallback | None = None,
+        on_trace_danger: TraceDangerCallback | None = None,
         **kwargs: Any,
     ) -> None:
         kwargs.setdefault("fg_color", "transparent")
@@ -776,7 +792,11 @@ class CyberdeckSidebar(ctk.CTkFrame):
         self.profile = PlayerProfilePanel(self, nickname=nickname)
         self.profile.grid(row=0, column=0, pady=(0, 8), sticky="ew")
 
-        self.trace_meter = TraceMeter(self, on_expired=on_trace_expired)
+        self.trace_meter = TraceMeter(
+            self,
+            on_expired=on_trace_expired,
+            on_danger=on_trace_danger,
+        )
         self.trace_meter.grid(row=1, column=0, pady=(0, 8), sticky="ew")
 
         self.mission_list = MissionListPanel(self, on_select=on_mission_select)
@@ -814,6 +834,9 @@ class MissionBriefPanel(ctk.CTkScrollableFrame):
         self._mission: Mission | None = None
         self._on_hint_requested = on_hint_requested
         self._hint_visible = False
+        self._typewriter = TypewriterEffect()
+        self._glitch = GlitchEffect()
+        self._fade = FadeInEffect()
         self.grid_columnconfigure(0, weight=1)
 
         self.title_label = ctk.CTkLabel(
@@ -928,25 +951,35 @@ class MissionBriefPanel(ctk.CTkScrollableFrame):
     def set_mission(self, mission: Mission) -> None:
         if not isinstance(mission, Mission):
             raise TypeError("mission должен быть экземпляром Mission")
+        self._typewriter.stop(self.description_box)
+        self._glitch.stop(self.title_label)
         self._mission = mission
         timer = (
             "без таймера" if mission.time_limit == 0 else f"{mission.time_limit} сек"
         )
         self.title_label.configure(text=mission.title)
+        self._glitch.glitch(self.title_label, duration=500)
         self.meta_label.configure(
             text=(
                 f"TIER {int(mission.tier)} // {TIER_NAMES[mission.tier].upper()}  "
                 f"|  +{mission.reward_exp} EXP  +{mission.reward_btc} BTC  |  {timer}"
             )
         )
-        self._set_text(self.description_box, mission.description)
+        self._fade.fade_in(self.meta_label, duration=500)
+        self._typewriter.typewrite(
+            self.description_box,
+            mission.description,
+            delay=6,
+        )
         tutorial_container = self.tutorial_box.master
         if mission.tutorial_text:
             tutorial_container.grid()
             self._set_text(self.tutorial_box, mission.tutorial_text)
+            self._fade.fade_in(self.tutorial_box, duration=800)
         else:
             tutorial_container.grid_remove()
         self._set_text(self.karma_box, mission.karma_choice)
+        self._fade.fade_in(self.karma_box, duration=650)
         self.hide_hint()
 
     @staticmethod
@@ -991,6 +1024,12 @@ class MissionBriefPanel(ctk.CTkScrollableFrame):
             text_color=TEXT_MUTED,
         )
         self.hint_button.configure(text=self._hint_button_text)
+
+    def destroy(self) -> None:
+        self._typewriter.stop_all()
+        self._glitch.stop_all()
+        self._fade.stop_all()
+        super().destroy()
 
     @property
     def current_mission(self) -> Mission | None:
@@ -1194,6 +1233,7 @@ __all__ = [
     "MissionPanel",
     "MissionSelectionCallback",
     "PlayerProfilePanel",
+    "TraceDangerCallback",
     "TraceExpiredCallback",
     "TraceMeter",
 ]

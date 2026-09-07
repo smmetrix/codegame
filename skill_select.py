@@ -21,6 +21,7 @@ from config import (
     WARNING_RED,
 )
 from game_state import SKILL_LEVELS
+from ui.animations import MatrixRain
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,14 +91,6 @@ SKILL_OPTIONS: Final[tuple[SkillOption, ...]] = (
         accent="#FFD166",
     ),
 )
-
-
-@dataclass(slots=True)
-class _MatrixStream:
-    x: int
-    y: float
-    speed: float
-    length: int
 
 
 def _blend_color(start: str, end: str, ratio: float) -> str:
@@ -341,8 +334,6 @@ class SkillSelectWindow(ctk.CTk):
 
         self.selected_skill: str | None = None
         self._selected_option: SkillOption | None = None
-        self._matrix_streams: list[_MatrixStream] = []
-        self._matrix_job: str | None = None
         self._glitch_job: str | None = None
         self._fade_job: str | None = None
         self._typing_job: str | None = None
@@ -350,21 +341,20 @@ class SkillSelectWindow(ctk.CTk):
         self._random = random.SystemRandom()
         self.cards: dict[str, SkillCard] = {}
 
-        self.matrix_canvas = tk.Canvas(
+        self.matrix_canvas = MatrixRain(
             self,
-            bg=DARK_BG,
-            highlightthickness=0,
-            bd=0,
+            background=DARK_BG,
+            column_width=24,
+            font_size=10,
         )
         self.matrix_canvas.place(x=0, y=0, relwidth=1, relheight=1)
         self.matrix_canvas.lower()
+        self.matrix_canvas.start()
 
         self._build_heading()
         self._build_cards()
         self._build_enter_area()
-        self.after_idle(self._initialize_matrix)
         self.after(30, lambda: self._fade_in(0))
-        self.after(250, self._animate_matrix)
         self.after(400, self._glitch_title)
 
     def _build_heading(self) -> None:
@@ -486,48 +476,6 @@ class SkillSelectWindow(ctk.CTk):
         self.enter_button.grid(row=0, column=0, padx=16, pady=13, sticky="ew")
         self.enter_frame.place_forget()
 
-    def _initialize_matrix(self) -> None:
-        width = max(self.winfo_width(), self.winfo_screenwidth())
-        height = max(self.winfo_height(), self.winfo_screenheight())
-        self.matrix_canvas.configure(width=width, height=height)
-        self._matrix_streams = [
-            _MatrixStream(
-                x=x,
-                y=float(self._random.randint(-height, height)),
-                speed=self._random.uniform(2.0, 5.5),
-                length=self._random.randint(5, 15),
-            )
-            for x in range(8, width, 24)
-        ]
-
-    def _animate_matrix(self) -> None:
-        self._matrix_job = None
-        if self._closed:
-            return
-        height = max(1, self.winfo_height())
-        self.matrix_canvas.delete("matrix")
-        for stream in self._matrix_streams:
-            for tail_index in range(stream.length):
-                y = stream.y - tail_index * 19
-                if -25 <= y <= height + 25:
-                    brightness = max(20, 150 - tail_index * 10)
-                    color = f"#00{brightness:02X}{max(25, brightness // 2):02X}"
-                    symbol = self._random.choice(("0", "1"))
-                    self.matrix_canvas.create_text(
-                        stream.x,
-                        y,
-                        text=symbol,
-                        fill=color,
-                        font=(FONT_MONO_FAMILY, 10),
-                        tags="matrix",
-                    )
-            stream.y += stream.speed
-            if stream.y - stream.length * 19 > height:
-                stream.y = float(self._random.randint(-500, -30))
-                stream.speed = self._random.uniform(2.0, 5.5)
-                stream.length = self._random.randint(5, 15)
-        self._matrix_job = self.after(70, self._animate_matrix)
-
     def _glitch_title(self) -> None:
         self._glitch_job = None
         if self._closed:
@@ -622,8 +570,8 @@ class SkillSelectWindow(ctk.CTk):
         if self._closed:
             return
         self._closed = True
+        self.matrix_canvas.stop()
         for job in (
-            self._matrix_job,
             self._glitch_job,
             self._fade_job,
             self._typing_job,
