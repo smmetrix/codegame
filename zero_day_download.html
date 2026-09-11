@@ -565,15 +565,16 @@
       <p class="eyebrow">// offline security simulation</p>
       <h1>ZERO DAY —<br>Hacker Simulator<span class="cursor"></span></h1>
       <p class="hero-subtitle">
-        Готовый архив для Windows: скачай, распакуй и запусти <code>zero_day.py</code>.
-        Копирование через Блокнот оставлено только как запасной способ.
+        Готовый архив для Windows: скачай, распакуй и дважды нажми
+        <code>START_GAME.bat</code>. Установка библиотек произойдёт автоматически.
       </p>
     </header>
 
     <section class="panel download-zone" aria-labelledby="download-title">
       <h2 class="section-label" id="download-title">Скачать игру одним кликом</h2>
       <p class="copy-intro">
-        Никакого Блокнота. Нажми первую красную кнопку — браузер скачает готовый ZIP-архив с игрой.
+        В архиве теперь есть <code>START_GAME.bat</code>: он сам проверит Python,
+        установит Pygame и запустит игру, не скрывая возможную ошибку.
       </p>
       <div class="file-chip" aria-label="Сведения о файле">
         <span>АРХИВ: <b>zero_day_game.zip</b></span>
@@ -614,33 +615,26 @@
     </section>
 
     <section class="panel" aria-labelledby="install-title">
-      <h2 class="section-label" id="install-title">Как запустить скачанную игру</h2>
+      <h2 class="section-label" id="install-title">Как запустить — всего три действия</h2>
       <ol class="steps">
         <li>
-          <strong>Нажми «Скачать ZERO DAY (.zip)»</strong> выше и дождись загрузки
-          <code>zero_day_game.zip</code>.
+          <strong>Скачай ZIP красной кнопкой выше.</strong> Затем открой папку «Загрузки».
         </li>
         <li>
-          <strong>Открой папку «Загрузки»</strong>, нажми на ZIP правой кнопкой мыши
-          и выбери <b>«Извлечь всё»</b>. Внутри будет готовый <code>zero_day.py</code>.
+          <strong>Нажми на <code>zero_day_game.zip</code> правой кнопкой</strong>
+          и выбери <b>«Извлечь всё»</b>. Обязательно запускай файлы из распакованной папки.
         </li>
         <li>
-          <strong>Установи Python 3.10+</strong> с
-          <a href="https://www.python.org/downloads/" target="_blank" rel="noopener noreferrer">python.org</a>.
-          Во время установки обязательно поставь галочку <b>“Add Python to PATH”</b>.
-        </li>
-        <li>
-          <strong>Установи библиотеки.</strong> Нажми <kbd>Win+R</kbd>, введи <code>cmd</code>,
-          нажми <kbd>Enter</kbd>, затем выполни <code>pip install pygame pygame_gui</code>.
-        </li>
-        <li>
-          <strong>Дважды кликни по <code>zero_day.py</code></strong> в распакованной папке.
-          Если Windows спросит программу, выбери Python.
+          <strong>Дважды нажми <code>START_GAME.bat</code>.</strong>
+          Он сам проверит Python, автоматически установит Pygame и запустит ZERO DAY.
+          При первом запуске установка может занять 1–3 минуты.
         </li>
       </ol>
       <p class="path-warning">
-        Если двойной клик открывает текст, а не игру: открой папку с файлом, введи
-        <code>cmd</code> в адресной строке Проводника и выполни <code>python zero_day.py</code>.
+        Если Python ещё не установлен, START_GAME.bat покажет понятное сообщение и не закроется.
+        Скачай Python 3.10+ с
+        <a href="https://www.python.org/downloads/" target="_blank" rel="noopener noreferrer">python.org</a>
+        и обязательно включи “Add Python to PATH”.
       </p>
     </section>
 
@@ -650,8 +644,8 @@
         <details open>
           <summary>Не запускается?</summary>
           <p>
-            Проверь Python и pip: в командной строке выполни
-            <code>python --version</code> и <code>pip --version</code>. Затем повтори установку библиотек.
+            Запускай не <code>zero_day.py</code>, а <code>START_GAME.bat</code> из распакованной папки.
+            Он оставит окно открытым и покажет понятную ошибку.
           </p>
         </details>
         <details>
@@ -664,8 +658,8 @@
         <details>
           <summary>Чёрный экран?</summary>
           <p>
-            Установи или обнови Pygame командами
-            <code>pip install --upgrade pygame pygame_gui</code>, затем перезапусти игру.
+            Закрой его и запусти <code>START_GAME.bat</code>. Он автоматически установит совместимые
+            <code>pygame-ce</code> и <code>pygame_gui</code>, а при ошибке не даст окну исчезнуть.
           </p>
         </details>
         <details>
