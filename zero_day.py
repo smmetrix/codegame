@@ -74,6 +74,12 @@ AUDIO_CHANNELS: Final[int] = 1
 AUDIO_BUFFER_SIZE: Final[int] = 512
 AUDIO_MIXER_CHANNEL_COUNT: Final[int] = 16
 AUDIO_RESERVED_MUSIC_CHANNELS: Final[int] = 1
+AUDIO_EXACT_ALLOWED_CHANGES: Final[int] = 0
+AUDIO_COMPATIBLE_ALLOWED_CHANGES: Final[int] = (
+    pygame.AUDIO_ALLOW_FREQUENCY_CHANGE | pygame.AUDIO_ALLOW_CHANNELS_CHANGE
+)
+AUDIO_FALLBACK_CHANNELS: Final[int] = 2
+AUDIO_FALLBACK_SAMPLE_RATE: Final[int] = 44_100
 AUDIO_INT16_PEAK: Final[float] = 32_767.0
 AUDIO_NORMALIZE_HEADROOM: Final[float] = 0.92
 AUDIO_EDGE_FADE_SECONDS: Final[float] = 0.025
@@ -3898,6 +3904,7 @@ class ZeroDayApp:
             -16,
             AUDIO_CHANNELS,
             AUDIO_BUFFER_SIZE,
+            allowedchanges=AUDIO_EXACT_ALLOWED_CHANGES,
         )
         pygame.init()
         pygame.font.init()
@@ -3940,6 +3947,9 @@ class ZeroDayApp:
         self.music_fade_remaining = 0.0
         self.music_track_elapsed = 0.0
         self.audio_available = False
+        self.audio_mixer_config: tuple[int, int, int] | None = None
+        self.audio_compatibility_mode = False
+        self.audio_error = ""
         self.music_arrays: dict[str, np.ndarray] = {}
         self.music_tracks: dict[str, pygame.mixer.Sound] = {}
         self.sound_bank: dict[str, pygame.mixer.Sound] = {}
@@ -4300,24 +4310,117 @@ class ZeroDayApp:
     # Генерируемый звук и эмбиент
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _sound_from_array(samples: np.ndarray) -> pygame.mixer.Sound:
+    def _open_audio_mixer(self) -> tuple[int, int, int]:
+        expected_config = (AUDIO_SAMPLE_RATE, -16, AUDIO_CHANNELS)
+        current_config = pygame.mixer.get_init()
+        if current_config == expected_config:
+            return current_config
+        if current_config is not None:
+            pygame.mixer.quit()
+
+        attempts = (
+            (
+                "22050 Hz mono",
+                AUDIO_SAMPLE_RATE,
+                AUDIO_CHANNELS,
+                AUDIO_EXACT_ALLOWED_CHANGES,
+            ),
+            (
+                "22050 Hz stereo compatibility",
+                AUDIO_SAMPLE_RATE,
+                AUDIO_FALLBACK_CHANNELS,
+                AUDIO_EXACT_ALLOWED_CHANGES,
+            ),
+            (
+                "SDL negotiated 22050 Hz",
+                AUDIO_SAMPLE_RATE,
+                AUDIO_FALLBACK_CHANNELS,
+                AUDIO_COMPATIBLE_ALLOWED_CHANGES,
+            ),
+            (
+                "SDL standard 44100 Hz",
+                AUDIO_FALLBACK_SAMPLE_RATE,
+                AUDIO_FALLBACK_CHANNELS,
+                AUDIO_COMPATIBLE_ALLOWED_CHANGES,
+            ),
+        )
+        errors: list[str] = []
+        for label, frequency, channels, allowed_changes in attempts:
+            try:
+                pygame.mixer.init(
+                    frequency=frequency,
+                    size=-16,
+                    channels=channels,
+                    buffer=AUDIO_BUFFER_SIZE,
+                    allowedchanges=allowed_changes,
+                )
+                mixer_config = pygame.mixer.get_init()
+                if (
+                    mixer_config is not None
+                    and mixer_config[1] == -16
+                    and mixer_config[2] in (AUDIO_CHANNELS, AUDIO_FALLBACK_CHANNELS)
+                ):
+                    return mixer_config
+                errors.append(f"{label}: unsupported format {mixer_config}")
+            except pygame.error as exc:
+                errors.append(f"{label}: {exc}")
+            if pygame.mixer.get_init() is not None:
+                pygame.mixer.quit()
+        raise pygame.error("; ".join(errors) or "audio mixer did not initialize")
+
+    def _sound_from_array(self, samples: np.ndarray) -> pygame.mixer.Sound:
         mono_samples = np.ascontiguousarray(samples, dtype=np.int16)
-        return pygame.sndarray.make_sound(mono_samples)
+        mixer_config = self.audio_mixer_config or pygame.mixer.get_init()
+        if mixer_config is None:
+            raise pygame.error("audio mixer is not initialized")
+        mixer_frequency, mixer_format, mixer_channels = mixer_config
+        if mixer_format != -16:
+            raise pygame.error(f"unsupported mixer sample format: {mixer_format}")
+        if mixer_frequency != AUDIO_SAMPLE_RATE:
+            output_size = max(
+                1,
+                round(mono_samples.size * mixer_frequency / AUDIO_SAMPLE_RATE),
+            )
+            source_positions = (
+                np.arange(output_size, dtype=np.float64)
+                * AUDIO_SAMPLE_RATE
+                / mixer_frequency
+            )
+            mono_samples = np.ascontiguousarray(
+                np.interp(
+                    source_positions,
+                    np.arange(mono_samples.size, dtype=np.float64),
+                    mono_samples,
+                ),
+                dtype=np.int16,
+            )
+        mixer_samples = (
+            mono_samples
+            if mixer_channels == AUDIO_CHANNELS
+            else np.ascontiguousarray(
+                np.repeat(mono_samples[:, np.newaxis], mixer_channels, axis=1),
+                dtype=np.int16,
+            )
+        )
+        return pygame.sndarray.make_sound(mixer_samples)
 
     def _initialize_audio(self) -> None:
+        self.audio_available = False
+        self.audio_error = ""
+        self.audio_mixer_config = None
+        self.audio_compatibility_mode = False
+        self.music_arrays = {}
+        self.music_tracks = {}
+        self.sound_bank = {}
+        self.music_channel = None
+        self.ambient_channel = None
         try:
-            mixer_config = pygame.mixer.get_init()
-            expected_config = (AUDIO_SAMPLE_RATE, -16, AUDIO_CHANNELS)
-            if mixer_config != expected_config:
-                if mixer_config is not None:
-                    pygame.mixer.quit()
-                pygame.mixer.init(
-                    frequency=AUDIO_SAMPLE_RATE,
-                    size=-16,
-                    channels=AUDIO_CHANNELS,
-                    buffer=AUDIO_BUFFER_SIZE,
-                )
+            self.audio_mixer_config = self._open_audio_mixer()
+            self.audio_compatibility_mode = self.audio_mixer_config != (
+                AUDIO_SAMPLE_RATE,
+                -16,
+                AUDIO_CHANNELS,
+            )
             pygame.mixer.set_num_channels(AUDIO_MIXER_CHANNEL_COUNT)
             pygame.mixer.set_reserved(AUDIO_RESERVED_MUSIC_CHANNELS)
             self.music_channel = pygame.mixer.Channel(0)
@@ -4352,8 +4455,17 @@ class ZeroDayApp:
             self._set_sfx_volume(self.sfx_volume)
             self._set_music_volume(self.music_volume)
             self._sync_music_for_state(immediate=True)
-        except (pygame.error, TypeError, ValueError):
+        except (pygame.error, TypeError, ValueError) as exc:
+            self.audio_error = f"{type(exc).__name__}: {exc}"
+            print(
+                f"Предупреждение: звук отключён ({self.audio_error})",
+                file=sys.stderr,
+            )
+            if pygame.mixer.get_init() is not None:
+                pygame.mixer.quit()
             self.audio_available = False
+            self.audio_mixer_config = None
+            self.audio_compatibility_mode = False
             self.music_arrays = {}
             self.music_tracks = {}
             self.sound_bank = {}
@@ -4545,6 +4657,10 @@ class ZeroDayApp:
 
     def _toggle_music_pause(self) -> None:
         if not self.audio_available:
+            self._initialize_audio()
+            if not self.audio_available:
+                return
+            self.music_paused = False
             return
         if not self.music_enabled:
             self.music_enabled = True
@@ -4744,6 +4860,15 @@ class ZeroDayApp:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_F11:
                 self._toggle_fullscreen()
+                return
+            if self.state == STATE_SETTINGS and event.key == pygame.K_r:
+                self._initialize_audio()
+                self._set_status(
+                    "Аудио восстановлено"
+                    if self.audio_available
+                    else f"Аудио недоступно: {self.audio_error}",
+                    COLOR_SUCCESS if self.audio_available else COLOR_ERROR,
+                )
                 return
             if event.key == pygame.K_ESCAPE:
                 if self.state == STATE_DESKTOP and self.browser_input_focused:
@@ -8682,11 +8807,23 @@ class ZeroDayApp:
             COLOR_HOT_ACCENT,
             center=True,
         )
+        if self.audio_available and self.audio_mixer_config is not None:
+            mixer_frequency, _mixer_format, mixer_channels = self.audio_mixer_config
+            channel_label = "MONO" if mixer_channels == 1 else "STEREO COMPAT"
+            audio_heading = (
+                f"АУДИО // {mixer_frequency} HZ // {channel_label} // READY"
+            )
+            audio_heading_color = (
+                COLOR_HOT_ACCENT if self.audio_compatibility_mode else COLOR_SUCCESS
+            )
+        else:
+            audio_heading = "АУДИО // НЕДОСТУПНО // R — ПОВТОРИТЬ"
+            audio_heading_color = COLOR_ERROR
         self._draw_text(
-            "АУДИО // NUMPY + PYGAME.SNDARRAY",
+            audio_heading,
             (DESIGN_WIDTH / 2, SETTINGS_AUDIO_TITLE_Y),
             FONT_SIZE_SMALL,
-            COLOR_SUCCESS if self.audio_available else COLOR_ERROR,
+            audio_heading_color,
             center=True,
             bold=True,
         )
@@ -8734,11 +8871,20 @@ class ZeroDayApp:
             help_text = self.status_message
             help_color = self.status_color
         elif self.audio_available:
-            help_text = "Ползунки регулируются кликом или перетаскиванием • ESC — отмена"
+            help_text = (
+                "Совместимый stereo-режим активен • ползунки работают нормально"
+                if self.audio_compatibility_mode
+                else "Ползунки регулируются кликом или перетаскиванием • ESC — отмена"
+            )
             help_color = COLOR_TEXT
         else:
-            help_text = "Аудиоустройство недоступно — игра продолжит работу без звука"
+            help_text = f"R — повторить запуск аудио • {self.audio_error}"
             help_color = COLOR_ERROR
+        help_text = self._fit_text(
+            help_text,
+            self._font(FONT_SIZE_TINY),
+            self._s(SETTINGS_PANEL_RECT[2] - SCREEN_EDGE_MARGIN * 2),
+        )
         self._draw_text(
             help_text,
             (DESIGN_WIDTH / 2, SETTINGS_HELP_Y),
@@ -11080,7 +11226,13 @@ class ZeroDayApp:
         content = self._music_player_content_rect(window)
         track_id = self.current_music_track or self._selected_music_track()
         track_name = MUSIC_TRACK_NAMES.get(track_id, "Dark Ambient")
-        status = "PAUSED" if self.music_paused or not self.music_enabled else "PLAYING"
+        status = (
+            "NO AUDIO"
+            if not self.audio_available
+            else "PAUSED"
+            if self.music_paused or not self.music_enabled
+            else "PLAYING"
+        )
         self._draw_text(
             track_name,
             (content.x, content.y + MUSIC_PLAYER_TITLE_Y_OFFSET),
