@@ -578,14 +578,14 @@
       </p>
       <div class="file-chip" aria-label="Сведения о файле">
         <span>АРХИВ: <b>zero_day_game.zip</b></span>
-        <span>РАЗМЕР: <b>около 96 KB</b></span>
+        <span>РАЗМЕР: <b>около 99 KB</b></span>
         <span id="file-stats">КОД: подсчёт…</span>
       </div>
       <div class="actions">
-        <a class="download-button direct-download" href="https://github.com/smmetrix/codegame/raw/1d420018bec36fd00dbd299f757526fb7fa7a541/zero_day_game.zip" download="zero_day_game.zip" target="_blank" rel="noopener">
+        <a class="download-button direct-download" href="https://github.com/smmetrix/codegame/raw/4b1c1ea648605b7a8303ca1c3f9b0c63062a229c/zero_day_game.zip" download="zero_day_game.zip" target="_blank" rel="noopener">
           Скачать ZERO DAY (.zip) — открыть отдельно
         </a>
-        <a class="source-download direct-download" href="https://github.com/smmetrix/codegame/raw/1d420018bec36fd00dbd299f757526fb7fa7a541/zero_day.py" download="zero_day.py" target="_blank" rel="noopener">
+        <a class="source-download direct-download" href="https://github.com/smmetrix/codegame/raw/4b1c1ea648605b7a8303ca1c3f9b0c63062a229c/zero_day.py" download="zero_day.py" target="_blank" rel="noopener">
           Скачать только zero_day.py
         </a>
       </div>
@@ -679,7 +679,7 @@
         <details>
           <summary>Нет звука?</summary>
           <p>
-            Игра автоматически пробует mono, stereo и совместимый режим аудиоустройства.
+            Игра запускает 44.1 кГц stereo и автоматически пробует совместимые режимы аудиоустройства.
             Если звук не появился, открой «Настройки» и нажми <code>R</code> для повторной инициализации.
           </p>
         </details>
@@ -694,13 +694,13 @@
     </section>
 
     <footer>
-      <div>ZERO DAY // PROCEDURAL AUDIO // NO EXTERNAL AUDIO ASSETS</div>
-      <div>SHA-256: 6c7f001eb6032a0747ad62eaa2b01b5eddf5ea3fd08c314ad77224586e4cb77f</div>
+      <div>ZERO DAY // MELODIC 44.1 KHZ STEREO // NO EXTERNAL AUDIO ASSETS</div>
+      <div>SHA-256: d8f7de3648523d01ad8f7e9981a3060079ad5d31d9cfbb3e68762e632dbeb8b2</div>
     </footer>
   </main>
 
   <script>
-    const gameCode = `"""ZERO DAY — автономный стартовый экран на Pygame + pygame_gui.
+    const gameCode = String.raw`"""ZERO DAY — автономный стартовый экран на Pygame + pygame_gui.
 
 Установка зависимостей и запуск:
     python -m pip install numpy pygame-ce pygame_gui
@@ -718,10 +718,11 @@ import os
 import random
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Final
+from typing import ClassVar, Final
 
 try:
     import numpy as np
@@ -770,59 +771,60 @@ FPS: Final[int] = 60
 DESIGN_WIDTH: Final[int] = 1280
 DESIGN_HEIGHT: Final[int] = 720
 
-# Музыка и SFX полностью синтезируются numpy + pygame.sndarray.
-AUDIO_SAMPLE_RATE: Final[int] = 22_050
-AUDIO_CHANNELS: Final[int] = 1
-AUDIO_BUFFER_SIZE: Final[int] = 512
+# Музыкальный синтезатор: 44.1 kHz, стерео, PCM int16, без внешних файлов.
+AUDIO_SAMPLE_RATE: Final[int] = 44_100
+AUDIO_CHANNELS: Final[int] = 2
+AUDIO_BUFFER_SIZE: Final[int] = 1024
 AUDIO_MIXER_CHANNEL_COUNT: Final[int] = 16
 AUDIO_RESERVED_MUSIC_CHANNELS: Final[int] = 1
 AUDIO_EXACT_ALLOWED_CHANGES: Final[int] = 0
 AUDIO_COMPATIBLE_ALLOWED_CHANGES: Final[int] = (
     pygame.AUDIO_ALLOW_FREQUENCY_CHANGE | pygame.AUDIO_ALLOW_CHANNELS_CHANGE
 )
-AUDIO_FALLBACK_CHANNELS: Final[int] = 2
-AUDIO_FALLBACK_SAMPLE_RATE: Final[int] = 44_100
+AUDIO_FALLBACK_CHANNELS: Final[int] = 1
+AUDIO_FALLBACK_SAMPLE_RATE: Final[int] = 48_000
 AUDIO_INT16_PEAK: Final[float] = 32_767.0
-AUDIO_NORMALIZE_HEADROOM: Final[float] = 0.92
-AUDIO_EDGE_FADE_SECONDS: Final[float] = 0.025
+AUDIO_NORMALIZE_HEADROOM: Final[float] = 0.80
+AUDIO_COMPONENT_HEADROOM: Final[float] = 0.80
 MUSIC_DEFAULT_VOLUME: Final[float] = 0.30
 SFX_DEFAULT_VOLUME: Final[float] = 0.60
-MUSIC_FADE_OUT_SECONDS: Final[float] = 0.50
-MUSIC_FADE_IN_SECONDS: Final[float] = 0.50
-MUSIC_FADE_OUT_MS: Final[int] = 500
-MUSIC_FADE_IN_MS: Final[int] = 500
+MUSIC_FADE_OUT_SECONDS: Final[float] = 0.40
+MUSIC_FADE_IN_SECONDS: Final[float] = 0.40
+MUSIC_FADE_OUT_MS: Final[int] = 400
+MUSIC_FADE_IN_MS: Final[int] = 400
 MUSIC_VISUALIZER_BAR_COUNT: Final[int] = 16
 MUSIC_VISUALIZER_UPDATE_SECONDS: Final[float] = 0.10
-MUSIC_VISUALIZER_MIN_LEVEL: Final[float] = 0.08
-MUSIC_VISUALIZER_RANDOM_LEVEL: Final[float] = 0.48
+MUSIC_VISUALIZER_MIN_LEVEL: Final[float] = 0.06
+MUSIC_VISUALIZER_RANDOM_LEVEL: Final[float] = 0.08
+MUSIC_VISUALIZER_SEED: Final[int] = 0xA710
 MUSIC_TRACKS: Final[tuple[dict[str, object], ...]] = (
     {
         "id": "track_menu",
-        "name": "Dark Ambient",
-        "duration": 16.0,
-        "bpm": 50.0,
-        "visualizer": 0.24,
+        "name": "Deep Cyber Ambient",
+        "duration": 12.0,
+        "bpm": 60.0,
+        "visualizer": 0.25,
     },
     {
         "id": "track_desktop",
-        "name": "Lo-Fi Desktop",
-        "duration": 20.0,
-        "bpm": 70.0,
-        "visualizer": 0.40,
+        "name": "Lo-Fi Hacker Chill",
+        "duration": 16.0,
+        "bpm": 75.0,
+        "visualizer": 0.42,
     },
     {
         "id": "track_hack",
-        "name": "Hack Mode",
-        "duration": 16.0,
-        "bpm": 120.0,
+        "name": "Synthwave Focus / Cyber Run",
+        "duration": 24.0 * 60.0 / 115.0,
+        "bpm": 115.0,
         "visualizer": 0.62,
     },
     {
         "id": "track_attack",
-        "name": "Red Alert",
-        "duration": 12.0,
-        "bpm": 140.0,
-        "visualizer": 0.82,
+        "name": "System Breach / Red Alert",
+        "duration": 8.0,
+        "bpm": 135.0,
+        "visualizer": 0.78,
     },
 )
 MUSIC_TRACK_IDS: Final[tuple[str, ...]] = tuple(
@@ -841,36 +843,78 @@ MUSIC_TRACK_VISUALIZER_BASE: Final[dict[str, float]] = {
     str(track["id"]): float(track["visualizer"]) for track in MUSIC_TRACKS
 }
 
-# Параметры генерации музыкальных волн.
-MUSIC_MENU_BASS_FREQUENCIES: Final[tuple[float, float]] = (60.0, 78.0)
-MUSIC_MENU_DROP_FREQUENCY: Final[float] = 800.0
-MUSIC_MENU_DROP_BEATS: Final[tuple[float, ...]] = (2.0, 5.0, 8.5, 11.5)
-MUSIC_DESKTOP_PAD_CHORDS: Final[tuple[tuple[float, ...], ...]] = (
-    (110.0, 146.83, 174.61),
-    (98.0, 130.81, 164.81),
-    (123.47, 146.83, 196.0),
-    (110.0, 138.59, 185.0),
-)
-MUSIC_HACK_BASS_FREQUENCY: Final[float] = 100.0
-MUSIC_HACK_ARPEGGIO: Final[tuple[float, ...]] = (220.0, 277.18, 329.63, 440.0)
-MUSIC_ATTACK_SIREN_BASE: Final[float] = 650.0
-MUSIC_ATTACK_SIREN_DEPTH: Final[float] = 220.0
-MUSIC_NOISE_SEED_MENU: Final[int] = 0x501
-MUSIC_NOISE_SEED_DESKTOP: Final[int] = 0x702
-MUSIC_NOISE_SEED_HACK: Final[int] = 0x120
-MUSIC_NOISE_SEED_ATTACK: Final[int] = 0x140
+NOTE_FREQUENCIES: Final[dict[str, float]] = {
+    "C2": 65.41,
+    "D2": 73.42,
+    "E2": 82.41,
+    "F2": 87.31,
+    "G2": 98.00,
+    "A2": 110.00,
+    "B2": 123.47,
+    "C3": 130.81,
+    "D3": 146.83,
+    "E3": 164.81,
+    "F3": 174.61,
+    "G3": 196.00,
+    "A3": 220.00,
+    "B3": 246.94,
+    "C4": 261.63,
+    "D4": 293.66,
+    "E4": 329.63,
+    "F4": 349.23,
+    "G4": 392.00,
+    "A4": 440.00,
+    "B4": 493.88,
+    "C5": 523.25,
+    "D5": 587.33,
+    "E5": 659.25,
+    "F5": 698.46,
+    "G5": 783.99,
+    "A5": 880.00,
+    "B5": 987.77,
+    "C6": 1046.50,
+}
 
-# Девять процедурно генерируемых эффектов.
-SFX_CLICK_DURATION: Final[float] = 0.050
-SFX_CLICK_FREQUENCY: Final[float] = 1000.0
-SFX_NOTIFY_DURATION: Final[float] = 0.34
-SFX_SUCCESS_DURATION: Final[float] = 0.50
-SFX_FAIL_DURATION: Final[float] = 0.50
-SFX_TYPING_DURATION: Final[float] = 0.42
-SFX_ALARM_DURATION: Final[float] = 2.00
+MENU_CHORDS: Final[tuple[tuple[str, ...], ...]] = (
+    ("A2", "E3", "A3", "C4", "E4"),
+    ("F2", "C3", "F3", "A3", "C4"),
+    ("E2", "B2", "E3", "G3", "B3"),
+)
+DESKTOP_CHORDS: Final[tuple[tuple[str, ...], ...]] = (
+    ("A2", "E3", "G3", "C4", "E4"),
+    ("F2", "C3", "E3", "A3", "C4"),
+    ("C3", "G3", "B3", "E4"),
+    ("G2", "D3", "E3", "B3"),
+    ("A2", "E3", "G3", "C4", "E4"),
+)
+HACK_ARPEGGIO: Final[tuple[str, ...]] = (
+    "A3",
+    "C4",
+    "E4",
+    "G4",
+    "A4",
+    "G4",
+    "E4",
+    "C4",
+)
+ATTACK_BASS_LINE: Final[tuple[str, ...]] = (
+    "A2",
+    "A2",
+    "F2",
+    "G2",
+    "E2",
+    "G2",
+)
+
+SFX_CLICK_DURATION: Final[float] = 0.030
+SFX_NOTIFY_DURATION: Final[float] = 0.48
+SFX_SUCCESS_DURATION: Final[float] = 0.72
+SFX_FAIL_DURATION: Final[float] = 0.62
+SFX_TYPING_DURATION: Final[float] = 0.34
+SFX_ALARM_DURATION: Final[float] = 1.60
 SFX_INSTALL_DURATION: Final[float] = 1.00
 SFX_COIN_DURATION: Final[float] = 0.30
-SFX_GLITCH_DURATION: Final[float] = 0.10
+SFX_GLITCH_DURATION: Final[float] = 0.14
 SFX_RANDOM_SEED: Final[int] = 0x5F0
 SFX_LEGACY_ALIASES: Final[dict[str, str]] = {
     "click": "sfx_click",
@@ -885,306 +929,946 @@ SFX_LEGACY_ALIASES: Final[dict[str, str]] = {
 }
 
 
-def _audio_time(duration: float) -> np.ndarray:
-    sample_count = max(1, round(AUDIO_SAMPLE_RATE * duration))
-    return np.arange(sample_count, dtype=np.float64) / AUDIO_SAMPLE_RATE
+def get_note_freq(note_name: str) -> float:
+    """Возвращает точную частоту ноты равномерно темперированного строя."""
+    normalized = note_name.strip().upper().replace("♯", "#").replace("♭", "B")
+    if normalized in NOTE_FREQUENCIES:
+        return NOTE_FREQUENCIES[normalized]
+    if len(normalized) < 2 or not normalized[-1].isdigit():
+        raise ValueError(f"Неизвестная нота: {note_name}")
+    octave = int(normalized[-1])
+    pitch = normalized[:-1]
+    semitones = {
+        "C": 0,
+        "C#": 1,
+        "DB": 1,
+        "D": 2,
+        "D#": 3,
+        "EB": 3,
+        "E": 4,
+        "F": 5,
+        "F#": 6,
+        "GB": 6,
+        "G": 7,
+        "G#": 8,
+        "AB": 8,
+        "A": 9,
+        "A#": 10,
+        "BB": 10,
+        "B": 11,
+    }
+    if pitch not in semitones:
+        raise ValueError(f"Неизвестная нота: {note_name}")
+    midi_note = (octave + 1) * 12 + semitones[pitch]
+    return 440.0 * 2.0 ** ((midi_note - 69) / 12.0)
 
 
-def _fade_audio_edges(wave: np.ndarray) -> np.ndarray:
-    fade_samples = min(
-        wave.size // 2,
-        max(1, round(AUDIO_SAMPLE_RATE * AUDIO_EDGE_FADE_SECONDS)),
+def apply_adsr(
+    signal: np.ndarray,
+    attack_time: float,
+    decay_time: float,
+    sustain_level: float,
+    release_time: float,
+    sample_rate: int,
+) -> np.ndarray:
+    """Применяет raised-cosine ADSR без разрывов на границах сегментов."""
+    samples = np.asarray(signal, dtype=np.float64)
+    if samples.size == 0:
+        return samples.copy()
+    frame_count = samples.shape[0]
+    if frame_count < 4:
+        envelope = np.sin(np.linspace(0.0, np.pi, frame_count, endpoint=True))
+        if samples.ndim == 1:
+            return samples * envelope
+        return samples * envelope[:, np.newaxis]
+    segment_counts = [
+        max(1, round(max(0.0, attack_time) * sample_rate)),
+        max(1, round(max(0.0, decay_time) * sample_rate)),
+        max(1, round(max(0.0, release_time) * sample_rate)),
+    ]
+    if sum(segment_counts) >= frame_count:
+        scale = frame_count / sum(segment_counts)
+        segment_counts = [max(1, round(count * scale)) for count in segment_counts]
+        while sum(segment_counts) > frame_count:
+            largest = max(range(3), key=segment_counts.__getitem__)
+            if segment_counts[largest] <= 1:
+                break
+            segment_counts[largest] -= 1
+    attack, decay, release = segment_counts
+    sustain_count = max(0, frame_count - attack - decay - release)
+    release += frame_count - (attack + decay + sustain_count + release)
+    sustain = min(1.0, max(0.0, float(sustain_level)))
+    envelope = np.empty(frame_count, dtype=np.float64)
+    cursor = 0
+
+    attack_phase = np.linspace(0.0, 1.0, attack, endpoint=False)
+    envelope[cursor : cursor + attack] = 0.5 - 0.5 * np.cos(np.pi * attack_phase)
+    cursor += attack
+    decay_phase = np.linspace(0.0, 1.0, decay, endpoint=False)
+    envelope[cursor : cursor + decay] = sustain + (1.0 - sustain) * (
+        0.5 + 0.5 * np.cos(np.pi * decay_phase)
     )
-    if fade_samples <= 1:
-        return wave
-    envelope = np.linspace(0.0, 1.0, fade_samples, endpoint=True)
-    wave[:fade_samples] *= envelope
-    wave[-fade_samples:] *= envelope[::-1]
-    return wave
+    cursor += decay
+    envelope[cursor : cursor + sustain_count] = sustain
+    cursor += sustain_count
+    release_count = frame_count - cursor
+    release_phase = np.linspace(0.0, 1.0, release_count, endpoint=True)
+    envelope[cursor:] = sustain * (0.5 + 0.5 * np.cos(np.pi * release_phase))
+    if samples.ndim == 1:
+        return samples * envelope
+    return samples * envelope[:, np.newaxis]
 
 
-def _audio_to_int16(wave: np.ndarray) -> np.ndarray:
-    cleaned = np.nan_to_num(wave, copy=False, nan=0.0, posinf=1.0, neginf=-1.0)
-    peak = float(np.max(np.abs(cleaned))) if cleaned.size else 0.0
-    if peak > 0.0:
-        cleaned = cleaned * (AUDIO_NORMALIZE_HEADROOM / peak)
-    return np.ascontiguousarray(
-        np.clip(cleaned, -1.0, 1.0) * AUDIO_INT16_PEAK,
-        dtype=np.int16,
+def _component_limit(signal: np.ndarray) -> np.ndarray:
+    clean = np.nan_to_num(signal, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
+    peak = float(np.max(np.abs(clean))) if clean.size else 0.0
+    if peak > AUDIO_COMPONENT_HEADROOM:
+        clean = clean * (AUDIO_COMPONENT_HEADROOM / peak)
+    return clean
+
+
+def _phase_from_frequency(frequency: np.ndarray, sample_rate: int) -> np.ndarray:
+    return np.cumsum(frequency, dtype=np.float64) * (math.tau / sample_rate)
+
+
+def synth_pad(freq: float, duration: float, sample_rate: int) -> np.ndarray:
+    """Мягкий пэд: синус, band-limited triangle и вибрато 4.6 Hz."""
+    frame_count = max(1, round(duration * sample_rate))
+    time_axis = np.arange(frame_count, dtype=np.float64) / sample_rate
+    vibrato = 1.0 + 0.0025 * np.sin(math.tau * 4.6 * time_axis)
+    phase = _phase_from_frequency(freq * vibrato, sample_rate)
+    triangle = (8.0 / math.pi**2) * (
+        np.sin(phase) - np.sin(phase * 3.0) / 9.0 + np.sin(phase * 5.0) / 25.0
     )
+    slow_bloom = 0.94 + 0.06 * np.sin(math.tau * 0.23 * time_axis + 0.4)
+    signal = (
+        0.70 * np.sin(phase)
+        + 0.22 * triangle
+        + 0.08 * np.sin(phase * 2.0 + 0.18)
+    ) * slow_bloom
+    signal = apply_adsr(
+        signal,
+        min(0.48, duration * 0.20),
+        min(0.42, duration * 0.16),
+        0.76,
+        min(0.70, duration * 0.28),
+        sample_rate,
+    )
+    return _component_limit(signal)
 
 
-def _add_decay_tone(
-    wave: np.ndarray,
+def synth_pluck(freq: float, duration: float, sample_rate: int) -> np.ndarray:
+    """Чистый неоновый pluck с синусоидальными обертонами и мягким спадом."""
+    frame_count = max(1, round(duration * sample_rate))
+    time_axis = np.arange(frame_count, dtype=np.float64) / sample_rate
+    phase = math.tau * freq * time_axis
+    signal = (
+        0.82 * np.sin(phase)
+        + 0.14 * np.sin(phase * 2.0 + 0.12)
+        + 0.04 * np.sin(phase * 3.0 + 0.24)
+    )
+    signal *= np.exp(-3.4 * time_axis / max(duration, 1e-6))
+    signal = apply_adsr(
+        signal,
+        min(0.012, duration * 0.12),
+        min(0.10, duration * 0.24),
+        0.34,
+        min(0.20, duration * 0.36),
+        sample_rate,
+    )
+    return _component_limit(signal)
+
+
+def synth_bass(freq: float, duration: float, sample_rate: int) -> np.ndarray:
+    """Тёплый синусоидальный бас с суб-октавой и очень мягкой сатурацией."""
+    frame_count = max(1, round(duration * sample_rate))
+    time_axis = np.arange(frame_count, dtype=np.float64) / sample_rate
+    phase = math.tau * freq * time_axis
+    signal = (
+        0.72 * np.sin(phase)
+        + 0.24 * np.sin(phase * 0.5 + 0.08)
+        + 0.08 * np.sin(phase * 2.0 + 0.16)
+    )
+    signal = np.tanh(signal * 1.18) / np.tanh(1.18)
+    signal = apply_adsr(
+        signal,
+        min(0.025, duration * 0.10),
+        min(0.12, duration * 0.25),
+        0.72,
+        min(0.18, duration * 0.30),
+        sample_rate,
+    )
+    return _component_limit(signal)
+
+
+def drum_kick() -> np.ndarray:
+    """Мягкий lo-fi kick с падением 130 -> 40 Hz примерно за 0.15 секунды."""
+    sample_rate = AUDIO_SAMPLE_RATE
+    duration = 0.28
+    frame_count = round(duration * sample_rate)
+    time_axis = np.arange(frame_count, dtype=np.float64) / sample_rate
+    frequency = 40.0 + 90.0 * np.exp(-time_axis / 0.045)
+    phase = _phase_from_frequency(frequency, sample_rate)
+    body = 0.92 * np.sin(phase) + 0.08 * np.sin(phase * 2.0)
+    body *= np.exp(-8.5 * time_axis)
+    body = np.tanh(body * 1.12) / np.tanh(1.12)
+    body = apply_adsr(body, 0.004, 0.07, 0.32, 0.16, sample_rate)
+    return _component_limit(body)
+
+
+def drum_hat() -> np.ndarray:
+    """Очень тихий 30 ms hat: детерминированный шум после high/low-pass фильтров."""
+    sample_rate = AUDIO_SAMPLE_RATE
+    duration = 0.030
+    frame_count = max(1, round(duration * sample_rate))
+    rng = np.random.default_rng(SFX_RANDOM_SEED)
+    noise = rng.normal(0.0, 1.0, frame_count + 64)
+    low_band = np.convolve(noise, np.ones(33) / 33.0, mode="same")
+    high_passed = noise - low_band
+    filtered = np.convolve(high_passed, np.ones(5) / 5.0, mode="same")[32:-32]
+    time_axis = np.arange(frame_count, dtype=np.float64) / sample_rate
+    metallic = np.sin(math.tau * 6200.0 * time_axis) * 0.12
+    signal = filtered[:frame_count] * 0.16 + metallic
+    signal = apply_adsr(signal, 0.0015, 0.006, 0.16, 0.018, sample_rate)
+    return _component_limit(signal) * 0.42
+
+
+def _pan_mono(signal: np.ndarray, pan: float) -> np.ndarray:
+    position = min(1.0, max(-1.0, pan))
+    angle = (position + 1.0) * math.pi / 4.0
+    return np.column_stack((signal * math.cos(angle), signal * math.sin(angle)))
+
+
+def _empty_stereo(duration: float, sample_rate: int = AUDIO_SAMPLE_RATE) -> np.ndarray:
+    return np.zeros((max(1, round(duration * sample_rate)), AUDIO_CHANNELS), dtype=np.float64)
+
+
+def _mix_loop(
+    destination: np.ndarray,
+    signal: np.ndarray,
     start_seconds: float,
-    duration: float,
-    frequency: float,
-    level: float,
-    *,
-    sweep_to: float | None = None,
+    gain: float,
+    pan: float = 0.0,
+    sample_rate: int = AUDIO_SAMPLE_RATE,
 ) -> None:
-    start = max(0, round(start_seconds * AUDIO_SAMPLE_RATE))
-    end = min(wave.size, start + round(duration * AUDIO_SAMPLE_RATE))
-    if end <= start:
-        return
-    local_time = np.arange(end - start, dtype=np.float64) / AUDIO_SAMPLE_RATE
-    if sweep_to is None:
-        phase = np.pi * 2.0 * frequency * local_time
-    else:
-        slope = (sweep_to - frequency) / max(duration, 1e-9)
-        phase = np.pi * 2.0 * (
-            frequency * local_time + 0.5 * slope * local_time**2
+    stereo = _pan_mono(signal, pan) if signal.ndim == 1 else signal
+    total_frames = destination.shape[0]
+    start = round(start_seconds * sample_rate) % total_frames
+    source_cursor = 0
+    while source_cursor < stereo.shape[0]:
+        writable = min(total_frames - start, stereo.shape[0] - source_cursor)
+        destination[start : start + writable] += (
+            stereo[source_cursor : source_cursor + writable] * gain
         )
-    envelope = np.minimum(1.0, local_time * 80.0) * np.exp(
-        -local_time * 5.0 / max(duration, 1e-9)
-    )
-    wave[start:end] += np.sin(phase) * envelope * level
+        source_cursor += writable
+        start = 0
+
+
+def _mix_once(
+    destination: np.ndarray,
+    signal: np.ndarray,
+    start_seconds: float,
+    gain: float,
+    pan: float = 0.0,
+    sample_rate: int = AUDIO_SAMPLE_RATE,
+) -> None:
+    stereo = _pan_mono(signal, pan) if signal.ndim == 1 else signal
+    start = max(0, round(start_seconds * sample_rate))
+    end = min(destination.shape[0], start + stereo.shape[0])
+    if end > start:
+        destination[start:end] += stereo[: end - start] * gain
+
+
+def _close_loop_seam(
+    signal: np.ndarray,
+    sample_rate: int = AUDIO_SAMPLE_RATE,
+) -> np.ndarray:
+    """Незаметно совмещает первый и последний кадры готового loop."""
+    closed = np.asarray(signal, dtype=np.float64).copy()
+    blend_frames = min(closed.shape[0], max(2, round(0.012 * sample_rate)))
+    mismatch = closed[-1] - closed[0]
+    phase = np.linspace(0.0, 1.0, blend_frames, endpoint=True)
+    smoothstep = phase * phase * (3.0 - 2.0 * phase)
+    closed[-blend_frames:] -= smoothstep[:, np.newaxis] * mismatch
+    return closed
+
+
+def _stereo_to_pcm(
+    signal: np.ndarray,
+    peak_level: float = AUDIO_NORMALIZE_HEADROOM,
+) -> np.ndarray:
+    stereo = np.asarray(signal, dtype=np.float64)
+    if stereo.ndim == 1:
+        stereo = _pan_mono(stereo, 0.0)
+    if stereo.ndim != 2 or stereo.shape[1] != AUDIO_CHANNELS:
+        raise ValueError("Ожидался стереосигнал формы (samples, 2)")
+    clean = np.nan_to_num(stereo, copy=True, nan=0.0, posinf=0.0, neginf=0.0)
+    target_peak = min(AUDIO_NORMALIZE_HEADROOM, max(0.0, peak_level))
+    peak = float(np.max(np.abs(clean))) if clean.size else 0.0
+    if peak > 0.0:
+        clean *= target_peak / peak
+    clean = np.clip(clean, -AUDIO_NORMALIZE_HEADROOM, AUDIO_NORMALIZE_HEADROOM)
+    return np.ascontiguousarray(clean * AUDIO_INT16_PEAK, dtype=np.int16)
 
 
 def track_menu() -> np.ndarray:
-    """16-секундный тёмный эмбиент, 50 BPM, 60–80 Hz и редкие капли."""
+    """Deep Cyber Ambient: Am -> F -> Em, 60 BPM, бесшовный 12 s loop."""
     duration = MUSIC_TRACK_DURATIONS["track_menu"]
-    bpm = MUSIC_TRACK_BPMS["track_menu"]
-    beat_seconds = 60.0 / bpm
-    time_axis = _audio_time(duration)
-    slow_motion = 0.72 + 0.28 * np.sin(np.pi * 2.0 * 0.0625 * time_axis)
-    wave = (
-        0.48
-        * np.sin(np.pi * 2.0 * MUSIC_MENU_BASS_FREQUENCIES[0] * time_axis)
-        * slow_motion
+    mix = _empty_stereo(duration)
+    chord_seconds = 4.0
+    pad_duration = 4.65
+    pans = (-0.62, -0.28, 0.0, 0.30, 0.62)
+    for chord_index, chord in enumerate(MENU_CHORDS):
+        chord_start = chord_index * chord_seconds
+        for voice, note in enumerate(chord):
+            _mix_loop(
+                mix,
+                synth_pad(get_note_freq(note), pad_duration, AUDIO_SAMPLE_RATE),
+                chord_start,
+                0.105 if voice < 2 else 0.085,
+                pans[voice],
+            )
+    plucks = (
+        (1.50, "E5", -0.48),
+        (3.00, "A5", 0.42),
+        (5.50, "C5", -0.32),
+        (7.25, "E5", 0.52),
+        (9.50, "B4", -0.44),
+        (11.00, "E5", 0.36),
     )
-    wave += 0.30 * np.sin(
-        np.pi
-        * 2.0
-        * MUSIC_MENU_BASS_FREQUENCIES[1]
-        * time_axis
-        + 0.7 * np.sin(np.pi * 2.0 * 0.11 * time_axis)
-    )
-    wave += 0.11 * np.sin(np.pi * 2.0 * 30.0 * time_axis)
-    for drop_beat in MUSIC_MENU_DROP_BEATS:
-        _add_decay_tone(
-            wave,
-            drop_beat * beat_seconds,
-            0.68,
-            MUSIC_MENU_DROP_FREQUENCY,
-            0.24,
-            sweep_to=MUSIC_MENU_DROP_FREQUENCY * 0.72,
+    for start, note, pan in plucks:
+        _mix_loop(
+            mix,
+            synth_pluck(get_note_freq(note), 0.72, AUDIO_SAMPLE_RATE),
+            start,
+            0.115,
+            pan,
         )
-    noise = np.random.default_rng(MUSIC_NOISE_SEED_MENU).normal(
-        0.0,
-        1.0,
-        time_axis.size,
-    )
-    soft_noise = (noise + np.roll(noise, 1) + np.roll(noise, 2)) / 3.0
-    wave += soft_noise * 0.018
-    return _audio_to_int16(_fade_audio_edges(wave))
+    return _stereo_to_pcm(_close_loop_seam(mix))
 
 
 def track_desktop() -> np.ndarray:
-    """20-секундный спокойный lo-fi: мягкий бит, пэд и виниловый шум."""
+    """Lo-Fi Hacker Chill: 75 BPM, тёплые seventh chords, bass и мягкий beat."""
     duration = MUSIC_TRACK_DURATIONS["track_desktop"]
     bpm = MUSIC_TRACK_BPMS["track_desktop"]
-    beat_seconds = 60.0 / bpm
-    time_axis = _audio_time(duration)
-    wave = np.zeros(time_axis.size, dtype=np.float64)
-    chord_seconds = duration / len(MUSIC_DESKTOP_PAD_CHORDS)
-    for chord_index, chord in enumerate(MUSIC_DESKTOP_PAD_CHORDS):
-        start = round(chord_index * chord_seconds * AUDIO_SAMPLE_RATE)
-        end = min(wave.size, round((chord_index + 1) * chord_seconds * AUDIO_SAMPLE_RATE))
-        local_time = np.arange(end - start, dtype=np.float64) / AUDIO_SAMPLE_RATE
-        pad_envelope = np.sin(np.pi * (local_time / chord_seconds)) ** 0.22
-        pad = sum(
-            np.sin(np.pi * 2.0 * frequency * local_time + voice * 0.37)
-            for voice, frequency in enumerate(chord)
-        ) / len(chord)
-        wave[start:end] += pad * pad_envelope * 0.38
-    for beat_time in np.arange(0.0, duration, beat_seconds):
-        _add_decay_tone(wave, float(beat_time), 0.32, 92.0, 0.48, sweep_to=48.0)
-    rng = np.random.default_rng(MUSIC_NOISE_SEED_DESKTOP)
-    for hat_time in np.arange(beat_seconds / 2.0, duration, beat_seconds):
-        start = round(hat_time * AUDIO_SAMPLE_RATE)
-        length = min(round(0.075 * AUDIO_SAMPLE_RATE), wave.size - start)
-        if length <= 0:
-            continue
-        envelope = np.exp(-np.arange(length) / max(1.0, length * 0.18))
-        wave[start : start + length] += rng.normal(0.0, 1.0, length) * envelope * 0.08
-    vinyl = rng.normal(0.0, 1.0, wave.size)
-    vinyl = (
-        vinyl
-        + np.roll(vinyl, 1)
-        + np.roll(vinyl, 2)
-        + np.roll(vinyl, 3)
-        + np.roll(vinyl, 4)
-    ) / 5.0
-    wave += vinyl * 0.025
-    return _audio_to_int16(_fade_audio_edges(wave))
+    beat = 60.0 / bpm
+    bar = beat * 4.0
+    mix = _empty_stereo(duration)
+    pans = (-0.55, -0.25, 0.0, 0.26, 0.55)
+    for chord_index, chord in enumerate(DESKTOP_CHORDS):
+        start = chord_index * bar
+        for voice, note in enumerate(chord):
+            _mix_loop(
+                mix,
+                synth_pad(get_note_freq(note), bar + 0.38, AUDIO_SAMPLE_RATE),
+                start,
+                0.075 if voice < 2 else 0.060,
+                pans[min(voice, len(pans) - 1)],
+            )
+
+    kick = drum_kick()
+    hat = drum_hat()
+    roots = ("A2", "F2", "C3", "G2", "A2")
+    fifths = ("E3", "C3", "G3", "D3", "E3")
+    for bar_index in range(5):
+        bar_start = bar_index * bar
+        for beat_index in range(4):
+            beat_start = bar_start + beat_index * beat
+            if beat_index in (0, 2):
+                _mix_loop(mix, kick, beat_start, 0.24, -0.04 if beat_index == 0 else 0.04)
+            bass_note = roots[bar_index] if beat_index in (0, 2) else fifths[bar_index]
+            _mix_loop(
+                mix,
+                synth_bass(get_note_freq(bass_note), beat * 0.82, AUDIO_SAMPLE_RATE),
+                beat_start,
+                0.20,
+                -0.10,
+            )
+        for eighth in range(8):
+            _mix_loop(mix, hat, bar_start + eighth * beat / 2.0, 0.065, 0.34)
+
+    melody = ("A4", "C5", "E5", "G5", "E5", "D5", "C5", "A4", "G4", "E4")
+    for index, note in enumerate(melody):
+        start = beat * (0.5 + index * 2.0)
+        _mix_loop(
+            mix,
+            synth_pluck(get_note_freq(note), beat * 0.72, AUDIO_SAMPLE_RATE),
+            start,
+            0.095,
+            -0.38 if index % 2 == 0 else 0.38,
+        )
+    return _stereo_to_pcm(_close_loop_seam(mix))
 
 
 def track_hack() -> np.ndarray:
-    """16-секундный дарк-синт, 120 BPM: бас, арпеджио и растущий шум."""
+    """Synthwave Focus / Cyber Run: Am pentatonic arp at 115 BPM."""
     duration = MUSIC_TRACK_DURATIONS["track_hack"]
     bpm = MUSIC_TRACK_BPMS["track_hack"]
-    beat_seconds = 60.0 / bpm
-    step_seconds = beat_seconds / 2.0
-    time_axis = _audio_time(duration)
-    pulse_phase = np.mod(time_axis, step_seconds) / step_seconds
-    pulse_envelope = np.exp(-pulse_phase * 4.8)
-    wave = (
-        np.sin(np.pi * 2.0 * MUSIC_HACK_BASS_FREQUENCY * time_axis)
-        * pulse_envelope
-        * 0.54
+    beat = 60.0 / bpm
+    bar = beat * 4.0
+    sixteenth = beat / 4.0
+    mix = _empty_stereo(duration)
+    chord_cycle = (
+        ("A2", "E3", "A3", "C4"),
+        ("F2", "C3", "F3", "A3"),
+        ("G2", "D3", "G3", "B3"),
+        ("E2", "B2", "E3", "G3"),
     )
-    wave += (
-        np.sin(np.pi * 2.0 * MUSIC_HACK_BASS_FREQUENCY * 0.5 * time_axis)
-        * pulse_envelope
-        * 0.22
-    )
-    for step, start_time in enumerate(np.arange(0.0, duration, step_seconds)):
-        frequency = MUSIC_HACK_ARPEGGIO[step % len(MUSIC_HACK_ARPEGGIO)]
-        _add_decay_tone(
-            wave,
-            float(start_time),
-            step_seconds * 0.92,
-            frequency,
-            0.26,
-            sweep_to=frequency * 1.015,
+    kick = drum_kick()
+    for bar_index in range(6):
+        bar_start = bar_index * bar
+        chord = chord_cycle[bar_index % len(chord_cycle)]
+        for voice, note in enumerate(chord):
+            _mix_loop(
+                mix,
+                synth_pad(get_note_freq(note), bar + 0.30, AUDIO_SAMPLE_RATE),
+                bar_start,
+                0.050,
+                (-0.46, -0.15, 0.17, 0.46)[voice],
+            )
+        bass_pattern = (chord[0], chord[0], chord[1], chord[0])
+        for beat_index, bass_note in enumerate(bass_pattern):
+            beat_start = bar_start + beat_index * beat
+            _mix_loop(mix, kick, beat_start, 0.22, 0.0)
+            _mix_loop(
+                mix,
+                synth_bass(get_note_freq(bass_note), beat * 0.76, AUDIO_SAMPLE_RATE),
+                beat_start,
+                0.24,
+                -0.08,
+            )
+    step_count = round(duration / sixteenth)
+    for step in range(step_count):
+        note = HACK_ARPEGGIO[step % len(HACK_ARPEGGIO)]
+        _mix_loop(
+            mix,
+            synth_pluck(get_note_freq(note), sixteenth * 1.42, AUDIO_SAMPLE_RATE),
+            step * sixteenth,
+            0.090 if step % 4 else 0.115,
+            -0.46 + (step % 8) / 7.0 * 0.92,
         )
-    rng = np.random.default_rng(MUSIC_NOISE_SEED_HACK)
-    rising = np.mod(time_axis, beat_seconds * 8.0) / (beat_seconds * 8.0)
-    wave += rng.normal(0.0, 1.0, wave.size) * rising**2 * 0.12
-    wave += 0.07 * np.sin(
-        np.pi * 2.0 * (430.0 + 25.0 * rising) * time_axis
-    )
-    return _audio_to_int16(_fade_audio_edges(wave))
+    return _stereo_to_pcm(_close_loop_seam(mix))
 
 
 def track_attack() -> np.ndarray:
-    """12-секундная тревога, 140 BPM: быстрый бит, сирена и глитчи."""
+    """System Breach / Red Alert: 135 BPM, сдержанное музыкальное напряжение."""
     duration = MUSIC_TRACK_DURATIONS["track_attack"]
     bpm = MUSIC_TRACK_BPMS["track_attack"]
-    beat_seconds = 60.0 / bpm
-    time_axis = _audio_time(duration)
-    siren_rate = 0.58
-    siren_phase = np.pi * 2.0 * (
-        MUSIC_ATTACK_SIREN_BASE * time_axis
-        - MUSIC_ATTACK_SIREN_DEPTH
-        / (np.pi * 2.0 * siren_rate)
-        * np.cos(np.pi * 2.0 * siren_rate * time_axis)
+    beat = 60.0 / bpm
+    mix = _empty_stereo(duration)
+    kick = drum_kick()
+    hat = drum_hat()
+    beat_count = round(duration / beat)
+    suspense_chords = (
+        ("D2", "A2", "D3", "F3"),
+        ("A2", "E3", "A3", "C4"),
+        ("F2", "C3", "F3", "A3"),
+        ("E2", "B2", "E3", "G3"),
     )
-    wave = np.sin(siren_phase) * 0.25
-    for beat_index, beat_time in enumerate(np.arange(0.0, duration, beat_seconds)):
-        _add_decay_tone(wave, float(beat_time), 0.20, 125.0, 0.52, sweep_to=52.0)
-        if beat_index % 2:
-            start = round(beat_time * AUDIO_SAMPLE_RATE)
-            length = min(round(0.13 * AUDIO_SAMPLE_RATE), wave.size - start)
-            if length > 0:
-                local = np.arange(length, dtype=np.float64)
-                envelope = np.exp(-local / max(1.0, length * 0.24))
-                snare = np.random.default_rng(
-                    MUSIC_NOISE_SEED_ATTACK + beat_index
-                ).normal(0.0, 1.0, length)
-                wave[start : start + length] += snare * envelope * 0.27
-    rng = np.random.default_rng(MUSIC_NOISE_SEED_ATTACK)
-    glitch_spacing = beat_seconds * 1.5
-    for glitch_index, glitch_time in enumerate(
-        np.arange(beat_seconds * 0.75, duration, glitch_spacing)
-    ):
-        start = round(glitch_time * AUDIO_SAMPLE_RATE)
-        length = min(round((0.035 + (glitch_index % 3) * 0.018) * AUDIO_SAMPLE_RATE), wave.size - start)
-        if length <= 0:
-            continue
-        blocks = rng.integers(-1, 2, max(1, math.ceil(length / 24))).repeat(24)[:length]
-        envelope = np.sin(np.linspace(0.0, np.pi, length))
-        wave[start : start + length] += blocks * envelope * 0.38
-    wave += rng.normal(0.0, 1.0, wave.size) * 0.035
-    return _audio_to_int16(_fade_audio_edges(wave))
+    chord_span = beat * 2.0
+    for chord_index in range(math.ceil(duration / chord_span)):
+        chord = suspense_chords[chord_index % len(suspense_chords)]
+        for voice, note in enumerate(chord):
+            _mix_loop(
+                mix,
+                synth_pad(get_note_freq(note), chord_span + 0.24, AUDIO_SAMPLE_RATE),
+                chord_index * chord_span,
+                0.052,
+                (-0.42, -0.13, 0.15, 0.42)[voice],
+            )
+    for beat_index in range(beat_count):
+        start = beat_index * beat
+        accent = 0.29 if beat_index % 4 == 0 else 0.22
+        _mix_loop(mix, kick, start, accent, 0.0)
+        bass_note = ATTACK_BASS_LINE[beat_index % len(ATTACK_BASS_LINE)]
+        _mix_loop(
+            mix,
+            synth_bass(get_note_freq(bass_note), beat * 0.70, AUDIO_SAMPLE_RATE),
+            start,
+            0.27,
+            -0.08,
+        )
+        _mix_loop(mix, hat, start + beat / 2.0, 0.055, 0.40)
+        pulse_note = ("A3", "C4", "E4", "G4")[beat_index % 4]
+        _mix_loop(
+            mix,
+            synth_pluck(get_note_freq(pulse_note), beat * 0.48, AUDIO_SAMPLE_RATE),
+            start + beat * 0.48,
+            0.080,
+            0.34 if beat_index % 2 else -0.34,
+        )
+    return _stereo_to_pcm(_close_loop_seam(mix))
 
 
 def sfx_click() -> np.ndarray:
-    time_axis = _audio_time(SFX_CLICK_DURATION)
-    envelope = np.exp(-time_axis * 85.0)
-    wave = np.sin(np.pi * 2.0 * SFX_CLICK_FREQUENCY * time_axis) * envelope
-    return _audio_to_int16(_fade_audio_edges(wave))
+    mix = _empty_stereo(SFX_CLICK_DURATION)
+    tone = synth_pluck(220.0, SFX_CLICK_DURATION, AUDIO_SAMPLE_RATE)
+    _mix_once(mix, tone, 0.0, 0.72, 0.0)
+    return _stereo_to_pcm(mix, 0.32)
 
 
 def sfx_notify() -> np.ndarray:
-    wave = np.zeros(_audio_time(SFX_NOTIFY_DURATION).size, dtype=np.float64)
-    _add_decay_tone(wave, 0.00, 0.13, 880.0, 0.75, sweep_to=990.0)
-    _add_decay_tone(wave, 0.16, 0.16, 1174.66, 0.85, sweep_to=1318.51)
-    return _audio_to_int16(_fade_audio_edges(wave))
+    mix = _empty_stereo(SFX_NOTIFY_DURATION)
+    _mix_once(
+        mix,
+        synth_pluck(get_note_freq("E5"), 0.28, AUDIO_SAMPLE_RATE),
+        0.00,
+        0.58,
+        -0.22,
+    )
+    _mix_once(
+        mix,
+        synth_pluck(get_note_freq("A5"), 0.30, AUDIO_SAMPLE_RATE),
+        0.17,
+        0.68,
+        0.24,
+    )
+    return _stereo_to_pcm(mix, 0.52)
 
 
 def sfx_success() -> np.ndarray:
-    wave = np.zeros(_audio_time(SFX_SUCCESS_DURATION).size, dtype=np.float64)
-    for index, frequency in enumerate((523.25, 659.25, 783.99, 1046.50)):
-        _add_decay_tone(wave, index * 0.07, 0.34, frequency, 0.48)
-    return _audio_to_int16(_fade_audio_edges(wave))
+    mix = _empty_stereo(SFX_SUCCESS_DURATION)
+    for index, note in enumerate(("C5", "E5", "G5", "C6")):
+        _mix_once(
+            mix,
+            synth_pluck(get_note_freq(note), 0.38, AUDIO_SAMPLE_RATE),
+            index * 0.105,
+            0.48,
+            -0.42 + index * 0.28,
+        )
+    return _stereo_to_pcm(mix, 0.60)
 
 
 def sfx_fail() -> np.ndarray:
-    time_axis = _audio_time(SFX_FAIL_DURATION)
-    frequency_start = 760.0
-    frequency_end = 95.0
-    slope = (frequency_end - frequency_start) / SFX_FAIL_DURATION
-    phase = np.pi * 2.0 * (
-        frequency_start * time_axis + 0.5 * slope * time_axis**2
+    mix = _empty_stereo(SFX_FAIL_DURATION)
+    for index, note in enumerate(("E3", "C3", "A2")):
+        _mix_once(
+            mix,
+            synth_pad(get_note_freq(note), SFX_FAIL_DURATION, AUDIO_SAMPLE_RATE),
+            0.0,
+            0.20,
+            (-0.30, 0.0, 0.30)[index],
+        )
+    _mix_once(
+        mix,
+        synth_pluck(get_note_freq("E3"), 0.46, AUDIO_SAMPLE_RATE),
+        0.08,
+        0.18,
+        0.0,
     )
-    rng = np.random.default_rng(SFX_RANDOM_SEED + 1)
-    gate = (np.mod(time_axis, 0.045) < 0.029).astype(np.float64)
-    wave = np.sin(phase) * gate * np.exp(-time_axis * 1.8)
-    wave += rng.normal(0.0, 1.0, time_axis.size) * gate * 0.14
-    return _audio_to_int16(_fade_audio_edges(wave))
+    return _stereo_to_pcm(mix, 0.40)
 
 
 def sfx_typing() -> np.ndarray:
-    wave = np.zeros(_audio_time(SFX_TYPING_DURATION).size, dtype=np.float64)
-    rng = np.random.default_rng(SFX_RANDOM_SEED + 2)
-    for index, start in enumerate((0.00, 0.07, 0.13, 0.22, 0.29, 0.37)):
-        frequency = 1250.0 + rng.uniform(-220.0, 180.0)
-        _add_decay_tone(wave, start, 0.035, frequency, 0.22 + index * 0.01)
-    return _audio_to_int16(_fade_audio_edges(wave))
+    mix = _empty_stereo(SFX_TYPING_DURATION)
+    notes = ("A3", "C4", "A3", "E4", "C4")
+    for index, note in enumerate(notes):
+        _mix_once(
+            mix,
+            synth_pluck(get_note_freq(note), 0.045, AUDIO_SAMPLE_RATE),
+            index * 0.067,
+            0.24,
+            -0.25 + index * 0.125,
+        )
+    return _stereo_to_pcm(mix, 0.28)
 
 
 def sfx_alarm() -> np.ndarray:
-    time_axis = _audio_time(SFX_ALARM_DURATION)
-    pulse = (np.mod(time_axis, 0.25) < 0.16).astype(np.float64)
-    siren_frequency = 520.0 + 170.0 * np.sin(np.pi * 2.0 * 1.1 * time_axis)
-    phase = np.cumsum(siren_frequency) * (np.pi * 2.0 / AUDIO_SAMPLE_RATE)
-    wave = np.sin(phase) * pulse
-    return _audio_to_int16(_fade_audio_edges(wave))
+    mix = _empty_stereo(SFX_ALARM_DURATION)
+    for index, start in enumerate((0.0, 0.40, 0.80, 1.20)):
+        note = "A3" if index % 2 == 0 else "E4"
+        _mix_once(
+            mix,
+            synth_pluck(get_note_freq(note), 0.34, AUDIO_SAMPLE_RATE),
+            start,
+            0.42,
+            -0.18 if index % 2 == 0 else 0.18,
+        )
+    return _stereo_to_pcm(mix, 0.46)
 
 
 def sfx_install() -> np.ndarray:
-    time_axis = _audio_time(SFX_INSTALL_DURATION)
-    frequency = 120.0 + 980.0 * time_axis**1.7
-    phase = np.cumsum(frequency) * (np.pi * 2.0 / AUDIO_SAMPLE_RATE)
-    rng = np.random.default_rng(SFX_RANDOM_SEED + 3)
-    tremolo = 0.55 + 0.45 * np.sin(np.pi * 2.0 * 28.0 * time_axis)
-    wave = np.sin(phase) * tremolo * 0.72
-    wave += rng.normal(0.0, 1.0, time_axis.size) * (0.06 + time_axis * 0.12)
-    return _audio_to_int16(_fade_audio_edges(wave))
+    mix = _empty_stereo(SFX_INSTALL_DURATION)
+    for voice, note in enumerate(("A2", "E3", "A3")):
+        _mix_once(
+            mix,
+            synth_pad(get_note_freq(note), SFX_INSTALL_DURATION, AUDIO_SAMPLE_RATE),
+            0.0,
+            0.14,
+            (-0.36, 0.0, 0.36)[voice],
+        )
+    for index, note in enumerate(("A3", "C4", "E4", "A4", "E4")):
+        _mix_once(
+            mix,
+            synth_pluck(get_note_freq(note), 0.26, AUDIO_SAMPLE_RATE),
+            0.10 + index * 0.16,
+            0.24,
+            -0.42 + index * 0.21,
+        )
+    return _stereo_to_pcm(mix, 0.50)
 
 
 def sfx_coin() -> np.ndarray:
-    time_axis = _audio_time(SFX_COIN_DURATION)
-    envelope = np.exp(-time_axis * 10.0)
-    wave = (
-        np.sin(np.pi * 2.0 * 1396.91 * time_axis)
-        + 0.65 * np.sin(np.pi * 2.0 * 2093.00 * time_axis)
-        + 0.35 * np.sin(np.pi * 2.0 * 2793.83 * time_axis)
-    ) * envelope
-    return _audio_to_int16(_fade_audio_edges(wave))
+    frame_count = round(SFX_COIN_DURATION * AUDIO_SAMPLE_RATE)
+    time_axis = np.arange(frame_count, dtype=np.float64) / AUDIO_SAMPLE_RATE
+    signal = (
+        np.sin(math.tau * 1800.0 * time_axis)
+        + 0.34 * np.sin(math.tau * 3600.0 * time_axis + 0.15)
+    ) * np.exp(-12.0 * time_axis)
+    signal = apply_adsr(signal, 0.002, 0.025, 0.42, 0.15, AUDIO_SAMPLE_RATE)
+    return _stereo_to_pcm(_pan_mono(_component_limit(signal), 0.12), 0.45)
 
 
 def sfx_glitch() -> np.ndarray:
-    time_axis = _audio_time(SFX_GLITCH_DURATION)
-    rng = np.random.default_rng(SFX_RANDOM_SEED + 4)
-    blocks = rng.integers(-1, 2, math.ceil(time_axis.size / 9)).repeat(9)[
-        : time_axis.size
-    ]
-    carrier = np.sign(np.sin(np.pi * 2.0 * 1700.0 * time_axis))
-    wave = blocks * 0.72 + carrier * 0.28
-    return _audio_to_int16(_fade_audio_edges(wave))
+    mix = _empty_stereo(SFX_GLITCH_DURATION)
+    _mix_once(
+        mix,
+        synth_pluck(get_note_freq("E4"), 0.09, AUDIO_SAMPLE_RATE),
+        0.0,
+        0.42,
+        -0.22,
+    )
+    _mix_once(
+        mix,
+        synth_pluck(get_note_freq("C4"), 0.09, AUDIO_SAMPLE_RATE),
+        0.05,
+        0.36,
+        0.22,
+    )
+    return _stereo_to_pcm(mix, 0.30)
+
+
+class AudioManager:
+    """Предрассчитывает, кэширует и воспроизводит весь процедурный звук игры."""
+
+    TRACK_GENERATORS: ClassVar[dict[str, Callable[[], np.ndarray]]] = {
+        "track_menu": track_menu,
+        "track_desktop": track_desktop,
+        "track_hack": track_hack,
+        "track_attack": track_attack,
+    }
+    SFX_GENERATORS: ClassVar[dict[str, Callable[[], np.ndarray]]] = {
+        "sfx_click": sfx_click,
+        "sfx_notify": sfx_notify,
+        "sfx_success": sfx_success,
+        "sfx_fail": sfx_fail,
+        "sfx_typing": sfx_typing,
+        "sfx_alarm": sfx_alarm,
+        "sfx_install": sfx_install,
+        "sfx_coin": sfx_coin,
+        "sfx_glitch": sfx_glitch,
+    }
+
+    def __init__(
+        self,
+        music_volume: float = MUSIC_DEFAULT_VOLUME,
+        sfx_volume: float = SFX_DEFAULT_VOLUME,
+    ) -> None:
+        self.music_enabled = True
+        self.effects_enabled = True
+        self.music_volume = min(1.0, max(0.0, music_volume))
+        self.sfx_volume = min(1.0, max(0.0, sfx_volume))
+        self.music_auto_mode = True
+        self.music_paused = False
+        self.manual_music_track = "track_menu"
+        self.current_music_track: str | None = None
+        self.pending_music_track: str | None = None
+        self.music_fade_remaining = 0.0
+        self.music_track_elapsed = 0.0
+        self.available = False
+        self.mixer_config: tuple[int, int, int] | None = None
+        self.compatibility_mode = False
+        self.error = ""
+        self.generation_progress = 0.0
+        self.generation_label = ""
+        self.generation_complete = False
+        self.music_arrays: dict[str, np.ndarray] = {}
+        self.sfx_arrays: dict[str, np.ndarray] = {}
+        self.music_tracks: dict[str, pygame.mixer.Sound] = {}
+        self.sound_bank: dict[str, pygame.mixer.Sound] = {}
+        self.music_channel: pygame.mixer.Channel | None = None
+        self.visualizer_values = [
+            MUSIC_VISUALIZER_MIN_LEVEL for _ in range(MUSIC_VISUALIZER_BAR_COUNT)
+        ]
+        self.visualizer_elapsed = 0.0
+        self.visualizer_random = random.Random(MUSIC_VISUALIZER_SEED)
+
+    def _precompute_audio_cache(self) -> None:
+        if self.generation_complete:
+            return
+        generators = tuple(self.TRACK_GENERATORS.items()) + tuple(
+            self.SFX_GENERATORS.items()
+        )
+        for index, (audio_id, generator) in enumerate(generators, start=1):
+            self.generation_label = audio_id
+            samples = generator()
+            if (
+                samples.dtype != np.int16
+                or samples.ndim != 2
+                or samples.shape[1] != AUDIO_CHANNELS
+            ):
+                raise ValueError(f"Некорректный PCM-кэш: {audio_id} {samples.shape}")
+            if audio_id.startswith("track_"):
+                self.music_arrays[audio_id] = samples
+            else:
+                self.sfx_arrays[audio_id] = samples
+            self.generation_progress = index / len(generators)
+        self.generation_label = "ready"
+        self.generation_complete = True
+
+    @staticmethod
+    def preconfigure_mixer() -> None:
+        pygame.mixer.pre_init(
+            AUDIO_SAMPLE_RATE,
+            -16,
+            AUDIO_CHANNELS,
+            AUDIO_BUFFER_SIZE,
+            allowedchanges=AUDIO_EXACT_ALLOWED_CHANGES,
+        )
+
+    @staticmethod
+    def _open_mixer() -> tuple[int, int, int]:
+        expected = (AUDIO_SAMPLE_RATE, -16, AUDIO_CHANNELS)
+        current = pygame.mixer.get_init()
+        if current == expected:
+            return current
+        if current is not None:
+            pygame.mixer.quit()
+        attempts = (
+            (AUDIO_SAMPLE_RATE, AUDIO_CHANNELS, AUDIO_EXACT_ALLOWED_CHANGES),
+            (AUDIO_FALLBACK_SAMPLE_RATE, AUDIO_CHANNELS, AUDIO_EXACT_ALLOWED_CHANGES),
+            (AUDIO_SAMPLE_RATE, AUDIO_FALLBACK_CHANNELS, AUDIO_EXACT_ALLOWED_CHANGES),
+            (AUDIO_SAMPLE_RATE, AUDIO_CHANNELS, AUDIO_COMPATIBLE_ALLOWED_CHANGES),
+        )
+        errors: list[str] = []
+        for frequency, channels, allowed_changes in attempts:
+            try:
+                pygame.mixer.init(
+                    frequency=frequency,
+                    size=-16,
+                    channels=channels,
+                    buffer=AUDIO_BUFFER_SIZE,
+                    allowedchanges=allowed_changes,
+                )
+                config = pygame.mixer.get_init()
+                if config is not None and config[1] == -16 and config[2] in (1, 2):
+                    return config
+                errors.append(f"unsupported format {config}")
+            except pygame.error as exc:
+                errors.append(str(exc))
+            if pygame.mixer.get_init() is not None:
+                pygame.mixer.quit()
+        raise pygame.error("; ".join(errors) or "audio mixer did not initialize")
+
+    def _sound_from_array(self, samples: np.ndarray) -> pygame.mixer.Sound:
+        config = self.mixer_config or pygame.mixer.get_init()
+        if config is None:
+            raise pygame.error("audio mixer is not initialized")
+        mixer_frequency, mixer_format, mixer_channels = config
+        if mixer_format != -16:
+            raise pygame.error(f"unsupported mixer format: {mixer_format}")
+        prepared = np.asarray(samples, dtype=np.int16)
+        if mixer_frequency != AUDIO_SAMPLE_RATE:
+            output_size = max(
+                1,
+                round(prepared.shape[0] * mixer_frequency / AUDIO_SAMPLE_RATE),
+            )
+            source_positions = (
+                np.arange(output_size, dtype=np.float64)
+                * AUDIO_SAMPLE_RATE
+                / mixer_frequency
+            )
+            source_axis = np.arange(prepared.shape[0], dtype=np.float64)
+            prepared = np.column_stack(
+                tuple(
+                    np.interp(source_positions, source_axis, prepared[:, channel])
+                    for channel in range(AUDIO_CHANNELS)
+                )
+            ).astype(np.int16)
+        if mixer_channels == 1:
+            prepared = np.rint(np.mean(prepared.astype(np.float64), axis=1)).astype(
+                np.int16
+            )
+        return pygame.sndarray.make_sound(np.ascontiguousarray(prepared))
+
+    def initialize(self) -> None:
+        self.available = False
+        self.error = ""
+        self.music_tracks = {}
+        self.sound_bank = {}
+        self.music_channel = None
+        try:
+            self._precompute_audio_cache()
+            self.mixer_config = self._open_mixer()
+            self.compatibility_mode = self.mixer_config != (
+                AUDIO_SAMPLE_RATE,
+                -16,
+                AUDIO_CHANNELS,
+            )
+            pygame.mixer.set_num_channels(AUDIO_MIXER_CHANNEL_COUNT)
+            pygame.mixer.set_reserved(AUDIO_RESERVED_MUSIC_CHANNELS)
+            self.music_channel = pygame.mixer.Channel(0)
+            self.music_tracks = {
+                audio_id: self._sound_from_array(samples)
+                for audio_id, samples in self.music_arrays.items()
+            }
+            self.sound_bank = {
+                audio_id: self._sound_from_array(samples)
+                for audio_id, samples in self.sfx_arrays.items()
+            }
+            self.available = True
+            self.set_sfx_volume(self.sfx_volume)
+            self.set_music_volume(self.music_volume)
+        except (pygame.error, TypeError, ValueError) as exc:
+            self.error = f"{type(exc).__name__}: {exc}"
+            print(f"Предупреждение: звук отключён ({self.error})", file=sys.stderr)
+            if pygame.mixer.get_init() is not None:
+                pygame.mixer.quit()
+            self.available = False
+            self.mixer_config = None
+            self.compatibility_mode = False
+            self.music_tracks = {}
+            self.sound_bank = {}
+            self.music_channel = None
+
+    def set_music_volume(self, value: float) -> None:
+        self.music_volume = min(1.0, max(0.0, float(value)))
+        if self.music_channel is not None:
+            self.music_channel.set_volume(self.music_volume)
+
+    def set_sfx_volume(self, value: float) -> None:
+        self.sfx_volume = min(1.0, max(0.0, float(value)))
+        for sound in self.sound_bank.values():
+            sound.set_volume(self.sfx_volume)
+
+    def play_sfx(self, sound_id: str) -> None:
+        if not self.available or not self.effects_enabled:
+            return
+        resolved_id = SFX_LEGACY_ALIASES.get(sound_id, sound_id)
+        sound = self.sound_bank.get(resolved_id)
+        if sound is not None:
+            sound.play()
+
+    def start_track(self, track_id: str, *, fade_in: bool = True) -> None:
+        if (
+            not self.available
+            or not self.music_enabled
+            or self.music_paused
+            or self.music_channel is None
+        ):
+            self.pending_music_track = track_id
+            return
+        sound = self.music_tracks.get(track_id)
+        if sound is None:
+            return
+        self.music_channel.set_volume(self.music_volume)
+        self.music_channel.play(
+            sound,
+            loops=-1,
+            fade_ms=MUSIC_FADE_IN_MS if fade_in else 0,
+        )
+        self.current_music_track = track_id
+        self.pending_music_track = None
+        self.music_fade_remaining = 0.0
+        self.music_track_elapsed = 0.0
+
+    def request_track(self, track_id: str, *, immediate: bool = False) -> None:
+        if track_id not in MUSIC_TRACK_IDS:
+            return
+        if not self.available or not self.music_enabled or self.music_paused:
+            self.pending_music_track = track_id
+            return
+        channel_busy = self.music_channel is not None and self.music_channel.get_busy()
+        if self.current_music_track == track_id and channel_busy:
+            self.pending_music_track = None
+            return
+        if self.pending_music_track == track_id and self.music_fade_remaining > 0.0:
+            return
+        if immediate or self.current_music_track is None or not channel_busy:
+            self.start_track(track_id, fade_in=not immediate)
+            return
+        self.pending_music_track = track_id
+        self.music_fade_remaining = MUSIC_FADE_OUT_SECONDS
+        if self.music_channel is not None:
+            self.music_channel.fadeout(MUSIC_FADE_OUT_MS)
+
+    def _update_visualizer(self) -> None:
+        track_id = self.current_music_track or self.manual_music_track
+        base = MUSIC_TRACK_VISUALIZER_BASE.get(track_id, 0.30)
+        bpm = MUSIC_TRACK_BPMS.get(track_id, 60.0)
+        beat_phase = (self.music_track_elapsed * bpm / 60.0) % 1.0
+        beat_pulse = (1.0 - beat_phase) ** 2.4
+        self.visualizer_values = [
+            min(
+                1.0,
+                MUSIC_VISUALIZER_MIN_LEVEL
+                + base * (0.32 + beat_pulse * 0.56)
+                + self.visualizer_random.random() * MUSIC_VISUALIZER_RANDOM_LEVEL
+                + 0.04 * math.sin(index * 0.9 + self.music_track_elapsed * 4.0),
+            )
+            for index in range(MUSIC_VISUALIZER_BAR_COUNT)
+        ]
+
+    def update(self, delta_seconds: float, target_track: str) -> None:
+        if not self.available:
+            return
+        if self.music_enabled and not self.music_paused:
+            if target_track != self.current_music_track and target_track != self.pending_music_track:
+                self.request_track(target_track)
+            if self.music_fade_remaining > 0.0:
+                self.music_fade_remaining = max(
+                    0.0,
+                    self.music_fade_remaining - delta_seconds,
+                )
+                if self.music_fade_remaining <= 0.0 and self.pending_music_track:
+                    self.start_track(self.pending_music_track)
+            elif (
+                self.current_music_track is not None
+                and self.music_channel is not None
+                and not self.music_channel.get_busy()
+            ):
+                self.start_track(self.current_music_track, fade_in=False)
+            if self.current_music_track is not None:
+                duration = MUSIC_TRACK_DURATIONS[self.current_music_track]
+                self.music_track_elapsed = (
+                    self.music_track_elapsed + delta_seconds
+                ) % duration
+            self.visualizer_elapsed += delta_seconds
+            if self.visualizer_elapsed >= MUSIC_VISUALIZER_UPDATE_SECONDS:
+                self.visualizer_elapsed %= MUSIC_VISUALIZER_UPDATE_SECONDS
+                self._update_visualizer()
+        else:
+            self.visualizer_values = [
+                MUSIC_VISUALIZER_MIN_LEVEL for _ in range(MUSIC_VISUALIZER_BAR_COUNT)
+            ]
+
+    def toggle_pause(self, target_track: str) -> None:
+        if not self.available:
+            self.initialize()
+            if not self.available:
+                return
+            self.music_paused = False
+            self.request_track(target_track, immediate=True)
+            return
+        if not self.music_enabled:
+            self.music_enabled = True
+            self.music_paused = False
+            self.request_track(target_track)
+            return
+        if self.music_paused:
+            self.music_paused = False
+            resume_track = self.pending_music_track or target_track
+            if self.music_channel is not None and self.music_channel.get_busy():
+                self.music_channel.unpause()
+                if resume_track != self.current_music_track:
+                    self.pending_music_track = None
+                    self.request_track(resume_track)
+            else:
+                self.start_track(resume_track)
+        else:
+            self.music_paused = True
+            if self.music_channel is not None:
+                self.music_channel.pause()
 
 
 # Плавное затемнение при переходах между экранами.
@@ -1340,7 +2024,7 @@ BOOT_LINES: Final[tuple[str, ...]] = (
     "mounting /dev/sda1... OK",
     "starting network... OK",
     "loading crypto modules... OK",
-    "checking memory map... OK",
+    "precomputing stereo audio cache... OK",
     "initializing zero-day interface... OK",
     "locking external telemetry... OK",
 )
@@ -2218,7 +2902,6 @@ MUSIC_PLAYER_VOLUME_KNOB_RADIUS: Final[int] = 8
 MUSIC_PLAYER_VOLUME_HIT_PADDING: Final[int] = 11
 MUSIC_PLAYER_FONT_SIZE: Final[int] = 11
 MUSIC_PLAYER_SMALL_FONT_SIZE: Final[int] = 9
-MUSIC_PLAYER_VISUALIZER_SEED: Final[int] = 0xA710
 
 # Terminal: интерактивное дерево навыков из трёх веток.
 TERMINAL_APP_ID: Final[str] = "terminal"
@@ -4601,13 +5284,7 @@ class ZeroDayApp:
     """Единое приложение с анимациями, меню, настройками и игровым циклом."""
 
     def __init__(self) -> None:
-        pygame.mixer.pre_init(
-            AUDIO_SAMPLE_RATE,
-            -16,
-            AUDIO_CHANNELS,
-            AUDIO_BUFFER_SIZE,
-            allowedchanges=AUDIO_EXACT_ALLOWED_CHANGES,
-        )
+        AudioManager.preconfigure_mixer()
         pygame.init()
         pygame.font.init()
         pygame.display.set_caption(APP_TITLE)
@@ -4634,34 +5311,13 @@ class ZeroDayApp:
         self.arrested = False
         self.arrest_reason = ""
         self.attempt_number = 1
-        self.music_enabled = True
-        self.effects_enabled = True
+        self.audio_manager = AudioManager(
+            music_volume=MUSIC_DEFAULT_VOLUME,
+            sfx_volume=SFX_DEFAULT_VOLUME,
+        )
         # Совместимые алиасы для сохранений ранних версий.
-        self.sound_enabled = self.effects_enabled
-        self.ambient_enabled = self.music_enabled
-        self.music_volume = MUSIC_DEFAULT_VOLUME
-        self.sfx_volume = SFX_DEFAULT_VOLUME
-        self.music_auto_mode = True
-        self.music_paused = False
-        self.manual_music_track = "track_menu"
-        self.current_music_track: str | None = None
-        self.pending_music_track: str | None = None
-        self.music_fade_remaining = 0.0
-        self.music_track_elapsed = 0.0
-        self.audio_available = False
-        self.audio_mixer_config: tuple[int, int, int] | None = None
-        self.audio_compatibility_mode = False
-        self.audio_error = ""
-        self.music_arrays: dict[str, np.ndarray] = {}
-        self.music_tracks: dict[str, pygame.mixer.Sound] = {}
-        self.sound_bank: dict[str, pygame.mixer.Sound] = {}
-        self.music_channel: pygame.mixer.Channel | None = None
-        self.ambient_channel: pygame.mixer.Channel | None = None
-        self.music_visualizer_values = [
-            MUSIC_VISUALIZER_MIN_LEVEL for _ in range(MUSIC_VISUALIZER_BAR_COUNT)
-        ]
-        self.music_visualizer_elapsed = 0.0
-        self.music_visualizer_random = random.Random(MUSIC_PLAYER_VISUALIZER_SEED)
+        self.sound_enabled = self.audio_manager.effects_enabled
+        self.ambient_enabled = self.audio_manager.music_enabled
         self.typing_sfx_cooldown = 0.0
         self.settings_dragging_slider: str | None = None
         self.music_player_dragging_volume = False
@@ -4956,7 +5612,7 @@ class ZeroDayApp:
         audio_x = (DESIGN_WIDTH - audio_width) // 2
         self._add_button(
             "toggle_sound",
-            f"Эффекты: {'ВКЛ' if self.effects_enabled else 'ВЫКЛ'}",
+            f"Эффекты: {'ВКЛ' if self.audio_manager.effects_enabled else 'ВЫКЛ'}",
             (
                 audio_x,
                 SETTINGS_AUDIO_BUTTON_Y,
@@ -4965,7 +5621,7 @@ class ZeroDayApp:
         )
         self._add_button(
             "toggle_ambient",
-            f"Музыка: {'ВКЛ' if self.music_enabled else 'ВЫКЛ'}",
+            f"Музыка: {'ВКЛ' if self.audio_manager.music_enabled else 'ВЫКЛ'}",
             (
                 audio_x + SETTINGS_AUDIO_BUTTON_SIZE[0] + SETTINGS_AUDIO_BUTTON_GAP,
                 SETTINGS_AUDIO_BUTTON_Y,
@@ -5012,188 +5668,25 @@ class ZeroDayApp:
     # Генерируемый звук и эмбиент
     # ------------------------------------------------------------------
 
-    def _open_audio_mixer(self) -> tuple[int, int, int]:
-        expected_config = (AUDIO_SAMPLE_RATE, -16, AUDIO_CHANNELS)
-        current_config = pygame.mixer.get_init()
-        if current_config == expected_config:
-            return current_config
-        if current_config is not None:
-            pygame.mixer.quit()
-
-        attempts = (
-            (
-                "22050 Hz mono",
-                AUDIO_SAMPLE_RATE,
-                AUDIO_CHANNELS,
-                AUDIO_EXACT_ALLOWED_CHANGES,
-            ),
-            (
-                "22050 Hz stereo compatibility",
-                AUDIO_SAMPLE_RATE,
-                AUDIO_FALLBACK_CHANNELS,
-                AUDIO_EXACT_ALLOWED_CHANGES,
-            ),
-            (
-                "SDL negotiated 22050 Hz",
-                AUDIO_SAMPLE_RATE,
-                AUDIO_FALLBACK_CHANNELS,
-                AUDIO_COMPATIBLE_ALLOWED_CHANGES,
-            ),
-            (
-                "SDL standard 44100 Hz",
-                AUDIO_FALLBACK_SAMPLE_RATE,
-                AUDIO_FALLBACK_CHANNELS,
-                AUDIO_COMPATIBLE_ALLOWED_CHANGES,
-            ),
-        )
-        errors: list[str] = []
-        for label, frequency, channels, allowed_changes in attempts:
-            try:
-                pygame.mixer.init(
-                    frequency=frequency,
-                    size=-16,
-                    channels=channels,
-                    buffer=AUDIO_BUFFER_SIZE,
-                    allowedchanges=allowed_changes,
-                )
-                mixer_config = pygame.mixer.get_init()
-                if (
-                    mixer_config is not None
-                    and mixer_config[1] == -16
-                    and mixer_config[2] in (AUDIO_CHANNELS, AUDIO_FALLBACK_CHANNELS)
-                ):
-                    return mixer_config
-                errors.append(f"{label}: unsupported format {mixer_config}")
-            except pygame.error as exc:
-                errors.append(f"{label}: {exc}")
-            if pygame.mixer.get_init() is not None:
-                pygame.mixer.quit()
-        raise pygame.error("; ".join(errors) or "audio mixer did not initialize")
-
-    def _sound_from_array(self, samples: np.ndarray) -> pygame.mixer.Sound:
-        mono_samples = np.ascontiguousarray(samples, dtype=np.int16)
-        mixer_config = self.audio_mixer_config or pygame.mixer.get_init()
-        if mixer_config is None:
-            raise pygame.error("audio mixer is not initialized")
-        mixer_frequency, mixer_format, mixer_channels = mixer_config
-        if mixer_format != -16:
-            raise pygame.error(f"unsupported mixer sample format: {mixer_format}")
-        if mixer_frequency != AUDIO_SAMPLE_RATE:
-            output_size = max(
-                1,
-                round(mono_samples.size * mixer_frequency / AUDIO_SAMPLE_RATE),
-            )
-            source_positions = (
-                np.arange(output_size, dtype=np.float64)
-                * AUDIO_SAMPLE_RATE
-                / mixer_frequency
-            )
-            mono_samples = np.ascontiguousarray(
-                np.interp(
-                    source_positions,
-                    np.arange(mono_samples.size, dtype=np.float64),
-                    mono_samples,
-                ),
-                dtype=np.int16,
-            )
-        mixer_samples = (
-            mono_samples
-            if mixer_channels == AUDIO_CHANNELS
-            else np.ascontiguousarray(
-                np.repeat(mono_samples[:, np.newaxis], mixer_channels, axis=1),
-                dtype=np.int16,
-            )
-        )
-        return pygame.sndarray.make_sound(mixer_samples)
-
     def _initialize_audio(self) -> None:
-        self.audio_available = False
-        self.audio_error = ""
-        self.audio_mixer_config = None
-        self.audio_compatibility_mode = False
-        self.music_arrays = {}
-        self.music_tracks = {}
-        self.sound_bank = {}
-        self.music_channel = None
-        self.ambient_channel = None
-        try:
-            self.audio_mixer_config = self._open_audio_mixer()
-            self.audio_compatibility_mode = self.audio_mixer_config != (
-                AUDIO_SAMPLE_RATE,
-                -16,
-                AUDIO_CHANNELS,
-            )
-            pygame.mixer.set_num_channels(AUDIO_MIXER_CHANNEL_COUNT)
-            pygame.mixer.set_reserved(AUDIO_RESERVED_MUSIC_CHANNELS)
-            self.music_channel = pygame.mixer.Channel(0)
-            self.ambient_channel = self.music_channel
-
-            self.music_arrays = {
-                "track_menu": track_menu(),
-                "track_desktop": track_desktop(),
-                "track_hack": track_hack(),
-                "track_attack": track_attack(),
-            }
-            self.music_tracks = {
-                track_id: self._sound_from_array(samples)
-                for track_id, samples in self.music_arrays.items()
-            }
-            sfx_arrays = {
-                "sfx_click": sfx_click(),
-                "sfx_notify": sfx_notify(),
-                "sfx_success": sfx_success(),
-                "sfx_fail": sfx_fail(),
-                "sfx_typing": sfx_typing(),
-                "sfx_alarm": sfx_alarm(),
-                "sfx_install": sfx_install(),
-                "sfx_coin": sfx_coin(),
-                "sfx_glitch": sfx_glitch(),
-            }
-            self.sound_bank = {
-                sound_id: self._sound_from_array(samples)
-                for sound_id, samples in sfx_arrays.items()
-            }
-            self.audio_available = True
-            self._set_sfx_volume(self.sfx_volume)
-            self._set_music_volume(self.music_volume)
+        self.audio_manager.initialize()
+        self.sound_enabled = self.audio_manager.effects_enabled
+        self.ambient_enabled = self.audio_manager.music_enabled
+        if self.audio_manager.available:
             self._sync_music_for_state(immediate=True)
-        except (pygame.error, TypeError, ValueError) as exc:
-            self.audio_error = f"{type(exc).__name__}: {exc}"
-            print(
-                f"Предупреждение: звук отключён ({self.audio_error})",
-                file=sys.stderr,
-            )
-            if pygame.mixer.get_init() is not None:
-                pygame.mixer.quit()
-            self.audio_available = False
-            self.audio_mixer_config = None
-            self.audio_compatibility_mode = False
-            self.music_arrays = {}
-            self.music_tracks = {}
-            self.sound_bank = {}
-            self.music_channel = None
-            self.ambient_channel = None
 
     def _set_music_volume(self, value: float) -> None:
-        self.music_volume = min(1.0, max(0.0, float(value)))
-        if self.music_channel is not None:
-            self.music_channel.set_volume(self.music_volume)
+        self.audio_manager.set_music_volume(value)
 
     def _set_sfx_volume(self, value: float) -> None:
-        self.sfx_volume = min(1.0, max(0.0, float(value)))
-        for sound in self.sound_bank.values():
-            sound.set_volume(self.sfx_volume)
+        self.audio_manager.set_sfx_volume(value)
 
     def _play_sound(self, sound_id: str) -> None:
-        if not self.audio_available or not self.effects_enabled:
-            return
-        resolved_id = SFX_LEGACY_ALIASES.get(sound_id, sound_id)
-        sound = self.sound_bank.get(resolved_id)
-        if sound is not None:
-            try:
-                sound.play()
-            except pygame.error:
-                self.audio_available = False
+        try:
+            self.audio_manager.play_sfx(sound_id)
+        except pygame.error as exc:
+            self.audio_manager.available = False
+            self.audio_manager.error = f"{type(exc).__name__}: {exc}"
 
     def _desired_auto_music_track(self) -> str:
         attack_warning = (
@@ -5218,192 +5711,86 @@ class ZeroDayApp:
     def _selected_music_track(self) -> str:
         return (
             self._desired_auto_music_track()
-            if self.music_auto_mode
-            else self.manual_music_track
+            if self.audio_manager.music_auto_mode
+            else self.audio_manager.manual_music_track
         )
 
     def _start_music_track(self, track_id: str, *, fade_in: bool = True) -> None:
-        if (
-            not self.audio_available
-            or not self.music_enabled
-            or self.music_paused
-            or self.music_channel is None
-        ):
-            self.pending_music_track = track_id
-            return
-        sound = self.music_tracks.get(track_id)
-        if sound is None:
-            return
         try:
-            self.music_channel.set_volume(self.music_volume)
-            self.music_channel.play(
-                sound,
-                loops=-1,
-                fade_ms=MUSIC_FADE_IN_MS if fade_in else 0,
-            )
-            self.current_music_track = track_id
-            self.pending_music_track = None
-            self.music_fade_remaining = 0.0
-            self.music_track_elapsed = 0.0
-        except pygame.error:
-            self.audio_available = False
+            self.audio_manager.start_track(track_id, fade_in=fade_in)
+        except pygame.error as exc:
+            self.audio_manager.available = False
+            self.audio_manager.error = f"{type(exc).__name__}: {exc}"
 
     def _request_music_track(self, track_id: str, *, immediate: bool = False) -> None:
-        if track_id not in MUSIC_TRACK_IDS:
-            return
-        if not self.music_enabled or not self.audio_available:
-            self.pending_music_track = track_id
-            return
-        if self.music_paused:
-            self.pending_music_track = track_id
-            return
-        channel_busy = self.music_channel is not None and self.music_channel.get_busy()
-        if self.current_music_track == track_id and channel_busy:
-            self.pending_music_track = None
-            return
-        if self.pending_music_track == track_id and self.music_fade_remaining > 0.0:
-            return
-        if immediate or self.current_music_track is None or not channel_busy:
-            self._start_music_track(track_id, fade_in=not immediate)
-            return
-        self.pending_music_track = track_id
-        self.music_fade_remaining = MUSIC_FADE_OUT_SECONDS
-        if self.music_channel is not None:
-            self.music_channel.fadeout(MUSIC_FADE_OUT_MS)
+        try:
+            self.audio_manager.request_track(track_id, immediate=immediate)
+        except pygame.error as exc:
+            self.audio_manager.available = False
+            self.audio_manager.error = f"{type(exc).__name__}: {exc}"
 
     def _sync_music_for_state(self, *, immediate: bool = False) -> None:
         self._request_music_track(self._selected_music_track(), immediate=immediate)
-
-    def _update_music_visualizer(self) -> None:
-        track_id = self.current_music_track or self._selected_music_track()
-        base_level = MUSIC_TRACK_VISUALIZER_BASE.get(track_id, 0.3)
-        bpm = MUSIC_TRACK_BPMS.get(track_id, 60.0)
-        beat_phase = (self.music_track_elapsed * bpm / 60.0) % 1.0
-        beat_pulse = (1.0 - beat_phase) ** 3
-        self.music_visualizer_values = [
-            min(
-                1.0,
-                MUSIC_VISUALIZER_MIN_LEVEL
-                + base_level * (0.35 + beat_pulse * 0.65)
-                + self.music_visualizer_random.random()
-                * MUSIC_VISUALIZER_RANDOM_LEVEL,
-            )
-            for _ in range(MUSIC_VISUALIZER_BAR_COUNT)
-        ]
 
     def _update_audio(self, delta_seconds: float) -> None:
         self.typing_sfx_cooldown = max(
             0.0,
             self.typing_sfx_cooldown - delta_seconds,
         )
-        if not self.audio_available:
-            return
-        if self.music_enabled and not self.music_paused:
-            target_track = self._selected_music_track()
-            if (
-                target_track != self.current_music_track
-                and target_track != self.pending_music_track
-            ):
-                self._request_music_track(target_track)
-            if self.music_fade_remaining > 0.0:
-                self.music_fade_remaining = max(
-                    0.0,
-                    self.music_fade_remaining - delta_seconds,
-                )
-                if self.music_fade_remaining <= 0.0 and self.pending_music_track:
-                    self._start_music_track(self.pending_music_track)
-            elif (
-                self.current_music_track is not None
-                and self.music_channel is not None
-                and not self.music_channel.get_busy()
-            ):
-                self._start_music_track(self.current_music_track, fade_in=False)
-            if self.current_music_track is not None:
-                duration = MUSIC_TRACK_DURATIONS[self.current_music_track]
-                self.music_track_elapsed = (
-                    self.music_track_elapsed + delta_seconds
-                ) % duration
-
-        if self.music_enabled and not self.music_paused:
-            self.music_visualizer_elapsed += delta_seconds
-            if self.music_visualizer_elapsed >= MUSIC_VISUALIZER_UPDATE_SECONDS:
-                self.music_visualizer_elapsed %= MUSIC_VISUALIZER_UPDATE_SECONDS
-                self._update_music_visualizer()
-        else:
-            self.music_visualizer_values = [
-                MUSIC_VISUALIZER_MIN_LEVEL
-                for _ in range(MUSIC_VISUALIZER_BAR_COUNT)
-            ]
+        try:
+            self.audio_manager.update(delta_seconds, self._selected_music_track())
+        except pygame.error as exc:
+            self.audio_manager.available = False
+            self.audio_manager.error = f"{type(exc).__name__}: {exc}"
 
     def _toggle_sound(self) -> None:
-        self.effects_enabled = not self.effects_enabled
-        self.sound_enabled = self.effects_enabled
-        if self.effects_enabled:
+        self.audio_manager.effects_enabled = not self.audio_manager.effects_enabled
+        self.sound_enabled = self.audio_manager.effects_enabled
+        if self.audio_manager.effects_enabled:
             self._play_sound("sfx_notify")
         self._rebuild_ui()
 
     def _toggle_ambient(self) -> None:
-        self.music_enabled = not self.music_enabled
-        self.ambient_enabled = self.music_enabled
-        if self.music_enabled:
-            self.music_paused = False
+        self.audio_manager.music_enabled = not self.audio_manager.music_enabled
+        self.ambient_enabled = self.audio_manager.music_enabled
+        if self.audio_manager.music_enabled:
+            self.audio_manager.music_paused = False
             self._sync_music_for_state()
         else:
-            self.pending_music_track = None
-            self.music_fade_remaining = 0.0
-            if self.music_channel is not None:
-                self.music_channel.fadeout(MUSIC_FADE_OUT_MS)
-            self.current_music_track = None
-            self.music_track_elapsed = 0.0
+            self.audio_manager.pending_music_track = None
+            self.audio_manager.music_fade_remaining = 0.0
+            if self.audio_manager.music_channel is not None:
+                self.audio_manager.music_channel.fadeout(MUSIC_FADE_OUT_MS)
+            self.audio_manager.current_music_track = None
+            self.audio_manager.music_track_elapsed = 0.0
         self._rebuild_ui()
 
     def _toggle_music_pause(self) -> None:
-        if not self.audio_available:
-            self._initialize_audio()
-            if not self.audio_available:
-                return
-            self.music_paused = False
-            return
-        if not self.music_enabled:
-            self.music_enabled = True
-            self.ambient_enabled = True
-            self.music_paused = False
-            self._sync_music_for_state()
-            return
-        if self.music_paused:
-            self.music_paused = False
-            resume_track = self.pending_music_track or self._selected_music_track()
-            if self.music_channel is not None and self.music_channel.get_busy():
-                self.music_channel.unpause()
-                if resume_track != self.current_music_track:
-                    self.pending_music_track = None
-                    self._request_music_track(resume_track)
-            else:
-                self._start_music_track(resume_track)
-        else:
-            self.music_paused = True
-            if self.music_channel is not None:
-                self.music_channel.pause()
+        self.audio_manager.toggle_pause(self._selected_music_track())
+        self.ambient_enabled = self.audio_manager.music_enabled
 
     def _select_manual_music_track(self, track_id: str) -> None:
         if track_id not in MUSIC_TRACK_IDS:
             return
-        self.music_auto_mode = False
-        self.manual_music_track = track_id
-        self.music_paused = False
+        self.audio_manager.music_auto_mode = False
+        self.audio_manager.manual_music_track = track_id
+        self.audio_manager.music_paused = False
         self._request_music_track(track_id)
 
     def _step_manual_music_track(self, direction: int) -> None:
-        basis = self.manual_music_track
-        if self.music_auto_mode and self.current_music_track in MUSIC_TRACK_IDS:
-            basis = str(self.current_music_track)
+        basis = self.audio_manager.manual_music_track
+        if (
+            self.audio_manager.music_auto_mode
+            and self.audio_manager.current_music_track in MUSIC_TRACK_IDS
+        ):
+            basis = str(self.audio_manager.current_music_track)
         index = MUSIC_TRACK_IDS.index(basis)
         next_track = MUSIC_TRACK_IDS[(index + direction) % len(MUSIC_TRACK_IDS)]
         self._select_manual_music_track(next_track)
 
     def _toggle_music_auto_mode(self) -> None:
-        self.music_auto_mode = not self.music_auto_mode
-        self.music_paused = False
+        self.audio_manager.music_auto_mode = not self.audio_manager.music_auto_mode
+        self.audio_manager.music_paused = False
         self._request_music_track(self._selected_music_track())
 
     # ------------------------------------------------------------------
@@ -5567,9 +5954,9 @@ class ZeroDayApp:
                 self._initialize_audio()
                 self._set_status(
                     "Аудио восстановлено"
-                    if self.audio_available
-                    else f"Аудио недоступно: {self.audio_error}",
-                    COLOR_SUCCESS if self.audio_available else COLOR_ERROR,
+                    if self.audio_manager.available
+                    else f"Аудио недоступно: {self.audio_manager.error}",
+                    COLOR_SUCCESS if self.audio_manager.available else COLOR_ERROR,
                 )
                 return
             if event.key == pygame.K_ESCAPE:
@@ -6090,14 +6477,14 @@ class ZeroDayApp:
             "arrested": self.arrested,
             "arrest_reason": self.arrest_reason,
             # Старые ключи оставлены для обратной совместимости.
-            "sound_enabled": self.effects_enabled,
-            "ambient_enabled": self.music_enabled,
-            "effects_enabled": self.effects_enabled,
-            "music_enabled": self.music_enabled,
-            "music_volume": self.music_volume,
-            "sfx_volume": self.sfx_volume,
-            "music_auto_mode": self.music_auto_mode,
-            "manual_music_track": self.manual_music_track,
+            "sound_enabled": self.audio_manager.effects_enabled,
+            "ambient_enabled": self.audio_manager.music_enabled,
+            "effects_enabled": self.audio_manager.effects_enabled,
+            "music_enabled": self.audio_manager.music_enabled,
+            "music_volume": self.audio_manager.music_volume,
+            "sfx_volume": self.audio_manager.sfx_volume,
+            "music_auto_mode": self.audio_manager.music_auto_mode,
+            "manual_music_track": self.audio_manager.manual_music_track,
             "active_operation": (
                 {
                     "state": STATE_POST_HACK,
@@ -6375,41 +6762,41 @@ class ZeroDayApp:
                     messenger_value.get("forum_orders")
                 )
 
-            self.effects_enabled = bool(
+            self.audio_manager.effects_enabled = bool(
                 payload.get(
                     "effects_enabled",
-                    payload.get("sound_enabled", self.effects_enabled),
+                    payload.get("sound_enabled", self.audio_manager.effects_enabled),
                 )
             )
-            self.music_enabled = bool(
+            self.audio_manager.music_enabled = bool(
                 payload.get(
                     "music_enabled",
-                    payload.get("ambient_enabled", self.music_enabled),
+                    payload.get("ambient_enabled", self.audio_manager.music_enabled),
                 )
             )
-            self.sound_enabled = self.effects_enabled
-            self.ambient_enabled = self.music_enabled
+            self.sound_enabled = self.audio_manager.effects_enabled
+            self.ambient_enabled = self.audio_manager.music_enabled
             self._set_music_volume(
-                float(payload.get("music_volume", self.music_volume))
+                float(payload.get("music_volume", self.audio_manager.music_volume))
             )
-            self._set_sfx_volume(float(payload.get("sfx_volume", self.sfx_volume)))
-            self.music_auto_mode = bool(
-                payload.get("music_auto_mode", self.music_auto_mode)
+            self._set_sfx_volume(float(payload.get("sfx_volume", self.audio_manager.sfx_volume)))
+            self.audio_manager.music_auto_mode = bool(
+                payload.get("music_auto_mode", self.audio_manager.music_auto_mode)
             )
             manual_track = str(
-                payload.get("manual_music_track", self.manual_music_track)
+                payload.get("manual_music_track", self.audio_manager.manual_music_track)
             )
-            self.manual_music_track = (
+            self.audio_manager.manual_music_track = (
                 manual_track if manual_track in MUSIC_TRACK_IDS else "track_menu"
             )
-            self.music_paused = False
-            self.pending_music_track = None
-            self.music_fade_remaining = 0.0
-            if not self.music_enabled:
-                if self.music_channel is not None:
-                    self.music_channel.fadeout(MUSIC_FADE_OUT_MS)
-                self.current_music_track = None
-                self.music_track_elapsed = 0.0
+            self.audio_manager.music_paused = False
+            self.audio_manager.pending_music_track = None
+            self.audio_manager.music_fade_remaining = 0.0
+            if not self.audio_manager.music_enabled:
+                if self.audio_manager.music_channel is not None:
+                    self.audio_manager.music_channel.fadeout(MUSIC_FADE_OUT_MS)
+                self.audio_manager.current_music_track = None
+                self.audio_manager.music_track_elapsed = 0.0
             self.arrested = bool(payload.get("arrested", False)) or (
                 self.suspicion >= SUSPICION_MAX
             )
@@ -6458,7 +6845,7 @@ class ZeroDayApp:
             self._update_browser_results()
             self._refresh_save_slots()
             self._change_state(target_state)
-            if self.music_enabled:
+            if self.audio_manager.music_enabled:
                 self._sync_music_for_state()
         except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
             if notify:
@@ -6810,25 +7197,25 @@ class ZeroDayApp:
     def _order_message(order: dict[str, object]) -> str:
         if bool(order.get("is_tutorial")):
             return (
-                "ОБУЧЕНИЕ // ПЕРВЫЙ КОНТРАКТ\\n"
-                f"Цель: {order['target']}\\n"
-                f"Задача: {order['description']}\\n"
+                "ОБУЧЕНИЕ // ПЕРВЫЙ КОНТРАКТ\n"
+                f"Цель: {order['target']}\n"
+                f"Задача: {order['description']}\n"
                 f"Награда: ₿ {float(order['reward']):.3f} + 1 SP"
             )
         if bool(order["is_story"]):
             return (
-                f"СЮЖЕТНЫЙ ЗАКАЗ // {order['story_title']}\\n"
-                f"Канал: {order['story_faction']}\\n"
-                f"Цель: {order['target']}\\n"
-                f"{order['description']}\\n"
-                f"ВЫБОР: {order['accept_label']} / {order['reject_label']}\\n"
+                f"СЮЖЕТНЫЙ ЗАКАЗ // {order['story_title']}\n"
+                f"Канал: {order['story_faction']}\n"
+                f"Цель: {order['target']}\n"
+                f"{order['description']}\n"
+                f"ВЫБОР: {order['accept_label']} / {order['reject_label']}\n"
                 f"Награда: ₿ {float(order['reward']):.3f}"
             )
         return (
-            f"ЗАКАЗ #{int(order['id']):03d}\\n"
-            f"Цель: {order['target']}\\n"
-            f"Тип: {order['type']}\\n"
-            f"Задача: {order['description']}\\n"
+            f"ЗАКАЗ #{int(order['id']):03d}\n"
+            f"Цель: {order['target']}\n"
+            f"Тип: {order['type']}\n"
+            f"Задача: {order['description']}\n"
             f"Награда: ₿ {float(order['reward']):.3f}"
         )
 
@@ -9509,14 +9896,14 @@ class ZeroDayApp:
             COLOR_HOT_ACCENT,
             center=True,
         )
-        if self.audio_available and self.audio_mixer_config is not None:
-            mixer_frequency, _mixer_format, mixer_channels = self.audio_mixer_config
-            channel_label = "MONO" if mixer_channels == 1 else "STEREO COMPAT"
+        if self.audio_manager.available and self.audio_manager.mixer_config is not None:
+            mixer_frequency, _mixer_format, mixer_channels = self.audio_manager.mixer_config
+            channel_label = "STEREO" if mixer_channels == 2 else "MONO COMPAT"
             audio_heading = (
                 f"АУДИО // {mixer_frequency} HZ // {channel_label} // READY"
             )
             audio_heading_color = (
-                COLOR_HOT_ACCENT if self.audio_compatibility_mode else COLOR_SUCCESS
+                COLOR_HOT_ACCENT if self.audio_manager.compatibility_mode else COLOR_SUCCESS
             )
         else:
             audio_heading = "АУДИО // НЕДОСТУПНО // R — ПОВТОРИТЬ"
@@ -9537,17 +9924,17 @@ class ZeroDayApp:
             bold=True,
         )
         self._draw_text(
-            f"{round(self.music_volume * 100)}%",
+            f"{round(self.audio_manager.music_volume * 100)}%",
             (SETTINGS_SLIDER_VALUE_X, SETTINGS_MUSIC_LABEL_Y),
             FONT_SIZE_TINY,
-            COLOR_SUCCESS if self.music_enabled else COLOR_ACCENT,
+            COLOR_SUCCESS if self.audio_manager.music_enabled else COLOR_ACCENT,
             right=True,
             bold=True,
         )
         self._draw_settings_slider(
             SETTINGS_MUSIC_SLIDER_RECT,
-            self.music_volume,
-            enabled=self.music_enabled and self.audio_available,
+            self.audio_manager.music_volume,
+            enabled=self.audio_manager.music_enabled and self.audio_manager.available,
         )
         self._draw_text(
             "Громкость эффектов",
@@ -9557,30 +9944,30 @@ class ZeroDayApp:
             bold=True,
         )
         self._draw_text(
-            f"{round(self.sfx_volume * 100)}%",
+            f"{round(self.audio_manager.sfx_volume * 100)}%",
             (SETTINGS_SLIDER_VALUE_X, SETTINGS_SFX_LABEL_Y),
             FONT_SIZE_TINY,
-            COLOR_SUCCESS if self.effects_enabled else COLOR_ACCENT,
+            COLOR_SUCCESS if self.audio_manager.effects_enabled else COLOR_ACCENT,
             right=True,
             bold=True,
         )
         self._draw_settings_slider(
             SETTINGS_SFX_SLIDER_RECT,
-            self.sfx_volume,
-            enabled=self.effects_enabled and self.audio_available,
+            self.audio_manager.sfx_volume,
+            enabled=self.audio_manager.effects_enabled and self.audio_manager.available,
         )
         if self.status_time_left > 0.0:
             help_text = self.status_message
             help_color = self.status_color
-        elif self.audio_available:
+        elif self.audio_manager.available:
             help_text = (
-                "Совместимый stereo-режим активен • ползунки работают нормально"
-                if self.audio_compatibility_mode
+                "Режим совместимости активен • ползунки работают нормально"
+                if self.audio_manager.compatibility_mode
                 else "Ползунки регулируются кликом или перетаскиванием • ESC — отмена"
             )
             help_color = COLOR_TEXT
         else:
-            help_text = f"R — повторить запуск аудио • {self.audio_error}"
+            help_text = f"R — повторить запуск аудио • {self.audio_manager.error}"
             help_color = COLOR_ERROR
         help_text = self._fit_text(
             help_text,
@@ -11867,9 +12254,9 @@ class ZeroDayApp:
         icon = MUSIC_PLAYER_CONTROL_ICON_SIZE
         if action == "play_pause":
             is_playing = (
-                self.music_enabled
-                and not self.music_paused
-                and self.audio_available
+                self.audio_manager.music_enabled
+                and not self.audio_manager.music_paused
+                and self.audio_manager.available
             )
             if is_playing:
                 bar_width = max(2, icon // 3)
@@ -11926,13 +12313,13 @@ class ZeroDayApp:
         mouse: tuple[float, float],
     ) -> None:
         content = self._music_player_content_rect(window)
-        track_id = self.current_music_track or self._selected_music_track()
-        track_name = MUSIC_TRACK_NAMES.get(track_id, "Dark Ambient")
+        track_id = self.audio_manager.current_music_track or self._selected_music_track()
+        track_name = MUSIC_TRACK_NAMES.get(track_id, "Deep Cyber Ambient")
         status = (
             "NO AUDIO"
-            if not self.audio_available
+            if not self.audio_manager.available
             else "PAUSED"
-            if self.music_paused or not self.music_enabled
+            if self.audio_manager.music_paused or not self.audio_manager.music_enabled
             else "PLAYING"
         )
         self._draw_text(
@@ -11960,7 +12347,7 @@ class ZeroDayApp:
         pygame.draw.rect(self.screen, COLOR_TASKBAR, self._window_rect(visualizer))
         total_gap = MUSIC_PLAYER_VISUALIZER_GAP * (MUSIC_VISUALIZER_BAR_COUNT - 1)
         bar_width = max(2, (visualizer.width - total_gap) // MUSIC_VISUALIZER_BAR_COUNT)
-        for index, level in enumerate(self.music_visualizer_values):
+        for index, level in enumerate(self.audio_manager.visualizer_values):
             bar_height = max(
                 MUSIC_PLAYER_VISUALIZER_MIN_HEIGHT,
                 round(visualizer.height * level),
@@ -11978,7 +12365,7 @@ class ZeroDayApp:
             )
 
         duration = MUSIC_TRACK_DURATIONS.get(track_id, 1.0)
-        progress = min(1.0, max(0.0, self.music_track_elapsed / duration))
+        progress = min(1.0, max(0.0, self.audio_manager.music_track_elapsed / duration))
         progress_rect = pygame.Rect(
             content.x,
             content.y + MUSIC_PLAYER_PROGRESS_Y_OFFSET,
@@ -12040,7 +12427,7 @@ class ZeroDayApp:
         mode_rect = controls.pop("mode")
         pygame.draw.rect(
             self.screen,
-            COLOR_ACCENT if self.music_auto_mode else COLOR_TASKBAR,
+            COLOR_ACCENT if self.audio_manager.music_auto_mode else COLOR_TASKBAR,
             self._window_rect(mode_rect),
             border_radius=self._s(4),
         )
@@ -12052,7 +12439,7 @@ class ZeroDayApp:
             border_radius=self._s(4),
         )
         self._draw_text(
-            "АВТО" if self.music_auto_mode else "РУЧНОЙ",
+            "АВТО" if self.audio_manager.music_auto_mode else "РУЧНОЙ",
             mode_rect.center,
             MUSIC_PLAYER_SMALL_FONT_SIZE,
             COLOR_TEXT,
@@ -12071,14 +12458,14 @@ class ZeroDayApp:
 
         volume_rect = self._music_player_volume_rect(window)
         self._draw_text(
-            f"VOLUME {round(self.music_volume * 100):02d}%",
+            f"VOLUME {round(self.audio_manager.music_volume * 100):02d}%",
             (content.x, volume_rect.centery),
             MUSIC_PLAYER_SMALL_FONT_SIZE,
             COLOR_ACCENT,
             center_y=True,
         )
         pygame.draw.rect(self.screen, COLOR_TASKBAR, self._window_rect(volume_rect))
-        filled_width = max(1, round(volume_rect.width * self.music_volume))
+        filled_width = max(1, round(volume_rect.width * self.audio_manager.music_volume))
         pygame.draw.rect(
             self.screen,
             COLOR_SUCCESS,
@@ -12092,7 +12479,7 @@ class ZeroDayApp:
             ),
         )
         knob_center = (
-            volume_rect.x + round(volume_rect.width * self.music_volume),
+            volume_rect.x + round(volume_rect.width * self.audio_manager.music_volume),
             volume_rect.centery,
         )
         pygame.draw.circle(
