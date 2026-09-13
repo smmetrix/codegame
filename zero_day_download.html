@@ -578,14 +578,14 @@
       </p>
       <div class="file-chip" aria-label="Сведения о файле">
         <span>АРХИВ: <b>zero_day_game.zip</b></span>
-        <span>РАЗМЕР: <b>около 99 KB</b></span>
+        <span>РАЗМЕР: <b>около 111 KB</b></span>
         <span id="file-stats">КОД: подсчёт…</span>
       </div>
       <div class="actions">
-        <a class="download-button direct-download" href="https://github.com/smmetrix/codegame/raw/4b1c1ea648605b7a8303ca1c3f9b0c63062a229c/zero_day_game.zip" download="zero_day_game.zip" target="_blank" rel="noopener">
+        <a class="download-button direct-download" href="https://github.com/smmetrix/codegame/raw/f57c23e51fe3a361fc75044cb5fbe394e8e2eaa6/zero_day_game.zip" download="zero_day_game.zip" target="_blank" rel="noopener">
           Скачать ZERO DAY (.zip) — открыть отдельно
         </a>
-        <a class="source-download direct-download" href="https://github.com/smmetrix/codegame/raw/4b1c1ea648605b7a8303ca1c3f9b0c63062a229c/zero_day.py" download="zero_day.py" target="_blank" rel="noopener">
+        <a class="source-download direct-download" href="https://github.com/smmetrix/codegame/raw/f57c23e51fe3a361fc75044cb5fbe394e8e2eaa6/zero_day.py" download="zero_day.py" target="_blank" rel="noopener">
           Скачать только zero_day.py
         </a>
       </div>
@@ -695,7 +695,7 @@
 
     <footer>
       <div>ZERO DAY // MELODIC 44.1 KHZ STEREO // NO EXTERNAL AUDIO ASSETS</div>
-      <div>SHA-256: d8f7de3648523d01ad8f7e9981a3060079ad5d31d9cfbb3e68762e632dbeb8b2</div>
+      <div>SHA-256: 1783cb546b00f57f13f6fcda5cf361f29cea651662f9c55be870046478c9e9c9</div>
     </footer>
   </main>
 
@@ -754,6 +754,9 @@ COLOR_ERROR_HEX: Final[str] = "#ff4444"
 COLOR_TASKBAR_HEX: Final[str] = "#0d1117"
 COLOR_MESSAGE_INCOMING_HEX: Final[str] = "#0f3460"
 COLOR_MESSAGE_OUTGOING_HEX: Final[str] = "#123b2f"
+COLOR_GOLD_HEX: Final[str] = "#ffcc33"
+COLOR_GOLD_DARK_HEX: Final[str] = "#5b4300"
+COLOR_MUTED_HEX: Final[str] = "#8b9199"
 
 COLOR_BACKGROUND: Final[pygame.Color] = pygame.Color(COLOR_BACKGROUND_HEX)
 COLOR_PANEL: Final[pygame.Color] = pygame.Color(COLOR_PANEL_HEX)
@@ -765,6 +768,9 @@ COLOR_ERROR: Final[pygame.Color] = pygame.Color(COLOR_ERROR_HEX)
 COLOR_TASKBAR: Final[pygame.Color] = pygame.Color(COLOR_TASKBAR_HEX)
 COLOR_MESSAGE_INCOMING: Final[pygame.Color] = pygame.Color(COLOR_MESSAGE_INCOMING_HEX)
 COLOR_MESSAGE_OUTGOING: Final[pygame.Color] = pygame.Color(COLOR_MESSAGE_OUTGOING_HEX)
+COLOR_GOLD: Final[pygame.Color] = pygame.Color(COLOR_GOLD_HEX)
+COLOR_GOLD_DARK: Final[pygame.Color] = pygame.Color(COLOR_GOLD_DARK_HEX)
+COLOR_MUTED: Final[pygame.Color] = pygame.Color(COLOR_MUTED_HEX)
 
 APP_TITLE: Final[str] = "ZERO DAY // ACCESS TERMINAL"
 FPS: Final[int] = 60
@@ -1568,6 +1574,7 @@ class AudioManager:
         self.effects_enabled = True
         self.music_volume = min(1.0, max(0.0, music_volume))
         self.sfx_volume = min(1.0, max(0.0, sfx_volume))
+        self.music_duck_multiplier = 1.0
         self.music_auto_mode = True
         self.music_paused = False
         self.manual_music_track = "track_menu"
@@ -1731,10 +1738,19 @@ class AudioManager:
             self.sound_bank = {}
             self.music_channel = None
 
+    def _apply_music_channel_volume(self) -> None:
+        if self.music_channel is not None:
+            self.music_channel.set_volume(
+                self.music_volume * self.music_duck_multiplier
+            )
+
     def set_music_volume(self, value: float) -> None:
         self.music_volume = min(1.0, max(0.0, float(value)))
-        if self.music_channel is not None:
-            self.music_channel.set_volume(self.music_volume)
+        self._apply_music_channel_volume()
+
+    def set_music_duck(self, multiplier: float) -> None:
+        self.music_duck_multiplier = min(1.0, max(0.0, float(multiplier)))
+        self._apply_music_channel_volume()
 
     def set_sfx_volume(self, value: float) -> None:
         self.sfx_volume = min(1.0, max(0.0, float(value)))
@@ -1749,6 +1765,12 @@ class AudioManager:
         if sound is not None:
             sound.play()
 
+    def stop_sfx(self, sound_id: str) -> None:
+        resolved_id = SFX_LEGACY_ALIASES.get(sound_id, sound_id)
+        sound = self.sound_bank.get(resolved_id)
+        if sound is not None:
+            sound.stop()
+
     def start_track(self, track_id: str, *, fade_in: bool = True) -> None:
         if (
             not self.available
@@ -1761,7 +1783,7 @@ class AudioManager:
         sound = self.music_tracks.get(track_id)
         if sound is None:
             return
-        self.music_channel.set_volume(self.music_volume)
+        self._apply_music_channel_volume()
         self.music_channel.play(
             sound,
             loops=-1,
@@ -1892,7 +1914,7 @@ GAME_CLOCK_RAY_STEP_DEGREES: Final[int] = 45
 GAME_CLOCK_CRESCENT_OFFSET: Final[tuple[int, int]] = (3, -2)
 
 # JSON-сохранения. Нулевой слот — save.json, далее save1.json, save2.json и т.д.
-SAVE_VERSION: Final[int] = 3
+SAVE_VERSION: Final[int] = 4
 SAVE_DEFAULT_FILENAME: Final[str] = "save.json"
 SAVE_SLOT_PREFIX: Final[str] = "save"
 SAVE_SLOT_SUFFIX: Final[str] = ".json"
@@ -2172,6 +2194,8 @@ GUIDE_SECTIONS: Final[tuple[dict[str, object], ...]] = (
             "Раздел «Сохранения» позволяет выбрать слот, загрузить его, перезаписать или начать новую историю.",
             "Четыре музыкальных лупа и девять эффектов генерируются NumPy и pygame.sndarray прямо в памяти.",
             "В настройках музыка и эффекты имеют отдельные ползунки и переключатели; MusicPlayer поддерживает авто и ручной режим.",
+            "Входящие вызовы приходят раз в 5–10 минут на рабочем столе: информатор даёт бонус, мошенник проверяет осторожность, а угрозу нужно погасить новым VPN.",
+            "Горячий заказ появляется раз в 15–20 минут: за 2 минуты он даёт награду x3 и +10 REP, но просрочка штрафует репутацию.",
             "Финал зависит от решений в четырёх сюжетных главах; после титра текущую сессию можно продолжить.",
         ),
     },
@@ -3255,6 +3279,137 @@ SUSPICION_MAX: Final[float] = 100.0
 SUSPICION_CLEAN_ORDER_REDUCTION: Final[float] = 0.0
 MESSENGER_ATTACK_FLASH_SECONDS: Final[float] = 3.0
 MESSENGER_ATTACK_BORDER_WIDTH: Final[int] = 6
+
+# Входящие звонки: интервалы заданы в секундах реального времени.
+call_types: Final[list[dict[str, object]]] = [
+    {
+        "type": "informant",
+        "weight": 40,
+        "name": "Неизвестный информатор",
+    },
+    {
+        "type": "trap",
+        "weight": 35,
+        "name": "Неизвестный номер",
+    },
+    {
+        "type": "threat",
+        "weight": 25,
+        "name": "Заблокированный номер",
+    },
+]
+CALL_INTERVAL_MIN_SECONDS: Final[float] = 300.0
+CALL_INTERVAL_MAX_SECONDS: Final[float] = 600.0
+CALL_REPEAT_MIN_SECONDS: Final[float] = 60.0
+CALL_REPEAT_MAX_SECONDS: Final[float] = 120.0
+CALL_REPEAT_CHANCE: Final[float] = 0.50
+CALL_RING_SECONDS: Final[float] = 10.0
+CALL_ALARM_REPEAT_SECONDS: Final[float] = 1.5
+CALL_MUSIC_DUCK_MULTIPLIER: Final[float] = 0.20
+CALL_SHAKE_UPDATES_PER_SECOND: Final[float] = 3.0
+CALL_SHAKE_PIXELS: Final[int] = 2
+CALL_MODAL_RECT: Final[tuple[int, int, int, int]] = (440, 235, 400, 250)
+CALL_DIALOG_RECT: Final[tuple[int, int, int, int]] = (310, 118, 660, 484)
+CALL_MODAL_BORDER_WIDTH: Final[int] = 3
+CALL_MODAL_CORNER_RADIUS: Final[int] = 13
+CALL_PHONE_CENTER: Final[tuple[int, int]] = (640, 278)
+CALL_PHONE_ICON_RADIUS: Final[int] = 24
+CALL_PHONE_ICON_STROKE: Final[int] = 4
+CALL_TITLE_Y: Final[int] = 317
+CALL_CALLER_Y: Final[int] = 350
+CALL_COUNTDOWN_Y: Final[int] = 389
+CALL_BUTTON_Y: Final[int] = 424
+CALL_BUTTON_SIZE: Final[tuple[int, int]] = (168, 42)
+CALL_BUTTON_GAP: Final[int] = 20
+CALL_TITLE_FONT_SIZE: Final[int] = 19
+CALL_CALLER_FONT_SIZE: Final[int] = 15
+CALL_COUNTDOWN_FONT_SIZE: Final[int] = 38
+CALL_BUTTON_FONT_SIZE: Final[int] = 14
+CALL_DIALOG_TITLE_Y: Final[int] = 146
+CALL_DIALOG_TEXT_X: Final[int] = 344
+CALL_DIALOG_TEXT_START_Y: Final[int] = 194
+CALL_DIALOG_TEXT_WIDTH: Final[int] = 592
+CALL_DIALOG_LINE_GAP: Final[int] = 29
+CALL_DIALOG_FONT_SIZE: Final[int] = 15
+CALL_DIALOG_SMALL_FONT_SIZE: Final[int] = 13
+CALL_DIALOG_BUTTON_RECT: Final[tuple[int, int, int, int]] = (535, 537, 210, 44)
+CALL_MESSAGE_INTERVAL_SECONDS: Final[float] = 1.5
+CALL_TYPING_CHARACTERS_PER_SECOND: Final[float] = 72.0
+CALL_ANSWER_LABEL: Final[str] = "📞 Ответить"
+CALL_DECLINE_LABEL: Final[str] = "❌ Сбросить"
+CALL_INFORMANT_DISCOUNT_SECONDS: Final[float] = 300.0
+CALL_INFORMANT_DISCOUNT_RATE: Final[float] = 0.30
+CALL_INFORMANT_BASE_MESSAGES: Final[tuple[str, ...]] = (
+    "Привет. Я знаю что ты работаешь на Phantom.",
+    "У меня есть кое-что для тебя.",
+    "Канал будет открыт недолго.",
+    "{bonus_message}",
+    "Не заставляй меня пожалеть об этом.",
+)
+CALL_INFORMANT_DISCOUNT_MESSAGE: Final[str] = (
+    "Скидка 30% в Даркнете на следующие 5 минут."
+)
+CALL_INFORMANT_HINT_MESSAGE: Final[str] = (
+    "Подсказка: цель 'corp_main' имеет уязвимость в фаерволле."
+)
+CALL_TRAP_ROUNDS: Final[tuple[dict[str, object], ...]] = (
+    {
+        "question": (
+            "Нам нужно подтвердить ваш IP-адрес. Назовите последние 4 цифры."
+        ),
+        "options": (
+            "1234",
+            "Я не даю такие данные",
+            "Какой ещё провайдер?",
+        ),
+        "correct": 1,
+    },
+    {
+        "question": "Продиктуйте пароль от личного кабинета для сверки.",
+        "options": (
+            "hunter2",
+            "Я не сообщаю пароли",
+            "Сначала назовите номер договора",
+        ),
+        "correct": 1,
+    },
+    {
+        "question": "Назовите ваше имя и домашний адрес для подтверждения.",
+        "options": (
+            "Алексей, улица Центральная, 12",
+            "Я не раскрываю личные данные",
+            "Вы уже должны это знать",
+        ),
+        "correct": 1,
+    },
+)
+CALL_TRAP_OPTION_START_Y: Final[int] = 350
+CALL_TRAP_OPTION_HEIGHT: Final[int] = 45
+CALL_TRAP_OPTION_GAP: Final[int] = 12
+CALL_TRAP_OPTION_SIDE_MARGIN: Final[int] = 40
+CALL_TRAP_SUSPICION_PENALTY: Final[float] = 5.0
+CALL_TRAP_REPUTATION_BONUS: Final[int] = 2
+CALL_THREAT_SECONDS: Final[float] = 120.0
+CALL_THREAT_MESSAGE: Final[str] = (
+    "Я знаю твой IP. У тебя 2 минуты чтобы сменить VPN. Иначе..."
+)
+CALL_THREAT_TIMER_RECT: Final[tuple[int, int, int, int]] = (1010, 48, 250, 48)
+
+# Горячие заказы: отдельный срочный контракт, не вытесняющий обычные заказы.
+HOT_DEAL_INTERVAL_MIN_SECONDS: Final[int] = 900
+HOT_DEAL_INTERVAL_MAX_SECONDS: Final[int] = 1200
+HOT_DEAL_DURATION_SECONDS: Final[float] = 120.0
+HOT_DEAL_REWARD_MULTIPLIER: Final[int] = 3
+HOT_DEAL_COMPLETION_REPUTATION: Final[int] = 10
+HOT_DEAL_FAILURE_REPUTATION: Final[int] = -10
+HOT_DEAL_IGNORED_REPUTATION: Final[int] = -3
+HOT_DEAL_TIMER_RECT: Final[tuple[int, int, int, int]] = (540, 45, 200, 60)
+HOT_DEAL_TIMER_FONT_SIZE: Final[int] = 30
+HOT_DEAL_TIMER_LABEL_FONT_SIZE: Final[int] = 10
+HOT_DEAL_MESSAGE: Final[str] = (
+    "🔥 ГОРЯЧИЙ ЗАКАЗ! Награда x3! Дедлайн: 2 МИНУТЫ! "
+    "Бери или потеряешь!"
+)
 
 # Первый заказ Ph4ntom и программно нарисованные подсказки обучения.
 TUTORIAL_CUSTOMER: Final[str] = "Ph4ntom"
@@ -5392,6 +5547,8 @@ class ZeroDayApp:
         self.random = random.Random(0x0DAD)
         self.order_random = random.Random()
         self.attack_random = random.Random()
+        self.event_random = random.Random()
+        self._reset_live_events()
         self._initialize_audio()
         self._refresh_save_slots()
         self._reset_messenger()
@@ -5689,6 +5846,8 @@ class ZeroDayApp:
             self.audio_manager.error = f"{type(exc).__name__}: {exc}"
 
     def _desired_auto_music_track(self) -> str:
+        if self.hot_deal.get("active"):
+            return "track_attack"
         attack_warning = (
             self.hacker_attack_warning_sent
             and self.hacker_attack_timer <= HACKER_ATTACK_WARNING_SECONDS
@@ -5709,6 +5868,8 @@ class ZeroDayApp:
         return "track_menu"
 
     def _selected_music_track(self) -> str:
+        if self.hot_deal.get("active"):
+            return "track_attack"
         return (
             self._desired_auto_music_track()
             if self.audio_manager.music_auto_mode
@@ -5792,6 +5953,1195 @@ class ZeroDayApp:
         self.audio_manager.music_auto_mode = not self.audio_manager.music_auto_mode
         self.audio_manager.music_paused = False
         self._request_music_track(self._selected_music_track())
+
+    # ------------------------------------------------------------------
+    # Входящие звонки и горячие заказы
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _blank_call_state() -> dict[str, object]:
+        return {
+            "active": False,
+            "timer": 0.0,
+            "type": None,
+            "answered": False,
+            "dialog_step": 0,
+            "phase": "idle",
+            "caller_name": "",
+            "elapsed": 0.0,
+            "alarm_timer": 0.0,
+            "messages": [],
+            "message_elapsed": 0.0,
+            "informant_bonus": None,
+            "informant_bonus_target": "",
+            "trap_errors": 0,
+            "trap_result_applied": False,
+            "trap_result": "",
+            "threat_active": False,
+            "threat_timer": 0.0,
+        }
+
+    def _reset_live_events(self) -> None:
+        if hasattr(self, "audio_manager"):
+            self.audio_manager.stop_sfx("sfx_alarm")
+            self.audio_manager.set_music_duck(1.0)
+        self.call_state = self._blank_call_state()
+        self.hot_deal: dict[str, object] = {
+            "active": False,
+            "order": None,
+            "timer": 0.0,
+            "reward_multiplier": HOT_DEAL_REWARD_MULTIPLIER,
+            "accepted": False,
+        }
+        self.next_call_time = self.event_random.uniform(
+            CALL_INTERVAL_MIN_SECONDS,
+            CALL_INTERVAL_MAX_SECONDS,
+        )
+        self.next_hot_deal_time = float(
+            self.event_random.randint(
+                HOT_DEAL_INTERVAL_MIN_SECONDS,
+                HOT_DEAL_INTERVAL_MAX_SECONDS,
+            )
+        )
+        self.darknet_discount_timer = 0.0
+        self.informant_pending_difficulty_bonus = 0
+
+    def _schedule_next_call(self, *, repeat_possible: bool = False) -> None:
+        repeat = repeat_possible and self.event_random.random() < CALL_REPEAT_CHANCE
+        self.next_call_time = self.event_random.uniform(
+            CALL_REPEAT_MIN_SECONDS if repeat else CALL_INTERVAL_MIN_SECONDS,
+            CALL_REPEAT_MAX_SECONDS if repeat else CALL_INTERVAL_MAX_SECONDS,
+        )
+
+    def _schedule_next_hot_deal(self) -> None:
+        self.next_hot_deal_time = float(
+            self.event_random.randint(
+                HOT_DEAL_INTERVAL_MIN_SECONDS,
+                HOT_DEAL_INTERVAL_MAX_SECONDS,
+            )
+        )
+
+    def _live_events_can_start(self) -> bool:
+        return (
+            self.has_active_session
+            and not self.arrested
+            and self.state == STATE_DESKTOP
+            and self.active_minigame is None
+            and not self.hacker_attack_warning_sent
+            and self.hacker_attack_time <= 0.0
+        )
+
+    def _start_incoming_call(self) -> bool:
+        if (
+            not self._live_events_can_start()
+            or bool(self.hot_deal.get("active"))
+            or bool(self.call_state.get("active"))
+            or bool(self.call_state.get("threat_active"))
+        ):
+            return False
+        selected = self.event_random.choices(
+            call_types,
+            weights=[int(call["weight"]) for call in call_types],
+            k=1,
+        )[0]
+        self.call_state = self._blank_call_state()
+        self.call_state.update(
+            {
+                "active": True,
+                "timer": CALL_RING_SECONDS,
+                "type": str(selected["type"]),
+                "phase": "ringing",
+                "caller_name": str(selected["name"]),
+                "alarm_timer": CALL_ALARM_REPEAT_SECONDS,
+            }
+        )
+        self.audio_manager.set_music_duck(CALL_MUSIC_DUCK_MULTIPLIER)
+        self._play_sound("sfx_alarm")
+        self.next_call_time = CALL_INTERVAL_MAX_SECONDS
+        self._save_game()
+        return True
+
+    def _stop_call_alarm(self) -> None:
+        self.audio_manager.stop_sfx("sfx_alarm")
+        self.call_state["alarm_timer"] = 0.0
+
+    def _close_incoming_call(
+        self,
+        *,
+        repeat_possible: bool = False,
+        save: bool = True,
+    ) -> None:
+        threat_active = bool(self.call_state.get("threat_active"))
+        threat_timer = max(0.0, float(self.call_state.get("threat_timer", 0.0)))
+        self._stop_call_alarm()
+        self.audio_manager.set_music_duck(1.0)
+        self.call_state = self._blank_call_state()
+        self.call_state["threat_active"] = threat_active
+        self.call_state["threat_timer"] = threat_timer
+        self._schedule_next_call(repeat_possible=repeat_possible)
+        if save:
+            self._save_game()
+
+    def _apply_informant_difficulty_bonus(self) -> str:
+        candidates = self._customer_nicks()
+        selected = self.messenger_selected_chat
+        if selected in candidates:
+            candidates.remove(selected)
+            candidates.insert(0, selected)
+        for customer in candidates:
+            order = self.messenger_active_orders.get(customer)
+            if order is not None and order.get("status") == "pending":
+                order["difficulty_reduction"] = min(
+                    1,
+                    int(order.get("difficulty_reduction", 0)) + 1,
+                )
+                return str(order.get("target", customer))
+        self.informant_pending_difficulty_bonus = 1
+        return "следующий заказ"
+
+    def _answer_incoming_call(self) -> None:
+        if self.call_state.get("phase") != "ringing":
+            return
+        self._stop_call_alarm()
+        self.call_state["answered"] = True
+        self.call_state["dialog_step"] = 0
+        self.call_state["message_elapsed"] = 0.0
+        call_type = str(self.call_state.get("type"))
+        if call_type == "informant":
+            bonus = self.event_random.choice(("discount", "hint"))
+            if bonus == "discount":
+                self.darknet_discount_timer = max(
+                    self.darknet_discount_timer,
+                    CALL_INFORMANT_DISCOUNT_SECONDS,
+                )
+                bonus_message = CALL_INFORMANT_DISCOUNT_MESSAGE
+                bonus_target = "DarkNet"
+            else:
+                bonus_target = self._apply_informant_difficulty_bonus()
+                bonus_message = CALL_INFORMANT_HINT_MESSAGE
+            self.call_state["informant_bonus"] = bonus
+            self.call_state["informant_bonus_target"] = bonus_target
+            self.call_state["messages"] = [
+                message.format(bonus_message=bonus_message)
+                for message in CALL_INFORMANT_BASE_MESSAGES
+            ]
+            self.call_state["phase"] = "informant"
+            self._play_sound("sfx_typing")
+        elif call_type == "trap":
+            self.call_state["phase"] = "trap"
+            self.call_state["trap_errors"] = 0
+            self.call_state["trap_result_applied"] = False
+        else:
+            self.call_state["phase"] = "threat"
+            self.call_state["messages"] = [CALL_THREAT_MESSAGE]
+            self.call_state["threat_active"] = True
+            self.call_state["threat_timer"] = CALL_THREAT_SECONDS
+        self._save_game()
+
+    def _answer_trap_round(self, option_index: int) -> None:
+        if self.call_state.get("phase") != "trap":
+            return
+        round_index = int(self.call_state.get("dialog_step", 0))
+        if not 0 <= round_index < len(CALL_TRAP_ROUNDS):
+            return
+        trap_round = CALL_TRAP_ROUNDS[round_index]
+        correct = option_index == int(trap_round["correct"])
+        if not correct:
+            self.call_state["trap_errors"] = int(
+                self.call_state.get("trap_errors", 0)
+            ) + 1
+            self._change_suspicion(
+                CALL_TRAP_SUSPICION_PENALTY,
+                "Ловушка телефонного мошенника раскрыла личные данные",
+            )
+            if self.arrested:
+                return
+        self.call_state["dialog_step"] = round_index + 1
+        self._play_sound("sfx_click" if correct else "sfx_fail")
+        if round_index + 1 >= len(CALL_TRAP_ROUNDS):
+            errors = int(self.call_state.get("trap_errors", 0))
+            if errors == 0:
+                self._change_reputation(CALL_TRAP_REPUTATION_BONUS)
+                result = "Хорошо, вы осторожны. Удачи."
+            else:
+                result = "Связь прервана."
+            self.call_state["trap_result"] = result
+            self.call_state["trap_result_applied"] = True
+            self.call_state["phase"] = "trap_result"
+        self._save_game()
+
+    def _resolve_threat_vpn_success(self) -> bool:
+        if not bool(self.call_state.get("threat_active")):
+            return False
+        self.call_state["threat_active"] = False
+        self.call_state["threat_timer"] = 0.0
+        self._push_notification(
+            "Хах, быстрый. Ладно, в этот раз прощаю.",
+            COLOR_SUCCESS,
+            sound_id="success",
+            force=True,
+        )
+        self._schedule_next_call()
+        self._save_game()
+        return True
+
+    def _trigger_threat_intrusion(self) -> None:
+        if not bool(self.call_state.get("threat_active")):
+            return
+        self.call_state["threat_active"] = False
+        self.call_state["threat_timer"] = 0.0
+        if bool(self.call_state.get("active")):
+            self._close_incoming_call(save=False)
+        self._push_notification(
+            "УГРОЗА ИСПОЛНЕНА — НЕМЕДЛЕННАЯ АТАКА",
+            COLOR_ERROR,
+            sound_id="alarm",
+            force=True,
+        )
+        if isinstance(self.active_minigame, IntrusionDefense):
+            return
+        if self.state == STATE_HACK_PREP:
+            self._cancel_prepared_hack()
+        elif self.state in MINIGAME_STATES:
+            self._leave_minigame()
+        elif self.state == STATE_POST_HACK:
+            self._finish_post_hack(
+                "Операция прервана входящей атакой",
+                COLOR_ERROR,
+            )
+        self.pending_hack_launch = None
+        self.selected_hack_tools = set()
+        self.pending_minigame_order = None
+        self.active_hack_context = None
+        self.active_minigame = None
+        self._start_intrusion_defense()
+        self._save_game()
+
+    def _hot_deal_order_for_customer(
+        self,
+        customer: str,
+    ) -> dict[str, object] | None:
+        order = self.hot_deal.get("order")
+        if (
+            bool(self.hot_deal.get("active"))
+            and isinstance(order, dict)
+            and str(order.get("customer")) == customer
+        ):
+            return order
+        return None
+
+    def _visible_messenger_order(
+        self,
+        customer: str,
+    ) -> dict[str, object] | None:
+        return self._hot_deal_order_for_customer(customer) or self.messenger_active_orders.get(
+            customer
+        )
+
+    def _make_hot_deal_order(self, customer: str) -> dict[str, object]:
+        self.messenger_order_sequence += 1
+        template = self.order_random.choice(ORDER_TEMPLATES)
+        ordinary_reward = round(
+            self.order_random.uniform(
+                float(template["reward_min"]),
+                float(template["reward_max"]),
+            )
+            * self._reputation_reward_multiplier(),
+            3,
+        )
+        reward = round(ordinary_reward * HOT_DEAL_REWARD_MULTIPLIER, 3)
+        return {
+            "id": self.messenger_order_sequence,
+            "customer": customer,
+            "target": str(template["target"]),
+            "type": str(template["type"]),
+            "category": str(template["category"]),
+            "target_type": str(template["target_type"]),
+            "description": str(template["description"]),
+            "base_reward": ordinary_reward,
+            "reward": reward,
+            "reward_multiplier": HOT_DEAL_REWARD_MULTIPLIER,
+            "deadline_at": time.time() + HOT_DEAL_DURATION_SECONDS,
+            "deadline_minutes": 2,
+            "is_story": False,
+            "is_hot_deal": True,
+            "status": "pending",
+        }
+
+    @staticmethod
+    def _hot_deal_message(order: dict[str, object]) -> str:
+        return (
+            f"{HOT_DEAL_MESSAGE}\n"
+            f"Цель: {order['target']}\n"
+            f"Тип: {order['type']}\n"
+            f"Задача: {order['description']}\n"
+            f"Награда x3: ₿ {float(order['reward']):.3f}"
+        )
+
+    def _start_hot_deal(self) -> bool:
+        if (
+            not self._live_events_can_start()
+            or bool(self.call_state.get("active"))
+            or bool(self.call_state.get("threat_active"))
+            or bool(self.hot_deal.get("active"))
+        ):
+            return False
+        customer = self.event_random.choice(self._customer_nicks())
+        order = self._make_hot_deal_order(customer)
+        self.hot_deal = {
+            "active": True,
+            "order": order,
+            "timer": HOT_DEAL_DURATION_SECONDS,
+            "reward_multiplier": HOT_DEAL_REWARD_MULTIPLIER,
+            "accepted": False,
+        }
+        self.desktop_notifications.clear()
+        self._append_messenger_message(
+            customer,
+            "incoming",
+            self._hot_deal_message(order),
+            order_id=int(order["id"]),
+            is_hot_deal=True,
+        )
+        self._push_notification(
+            f"🔥 ГОРЯЧИЙ ЗАКАЗ ОТ {customer.upper()} — НАГРАДА x3",
+            COLOR_GOLD,
+            sound_id="alarm",
+            force=True,
+        )
+        self.next_hot_deal_time = HOT_DEAL_INTERVAL_MAX_SECONDS
+        self._sync_music_for_state()
+        self._save_game()
+        return True
+
+    def _process_hot_deal(self, decision: str) -> None:
+        order = self.hot_deal.get("order")
+        if (
+            not bool(self.hot_deal.get("active"))
+            or not isinstance(order, dict)
+            or order.get("status") != "pending"
+        ):
+            return
+        if decision != "accepted":
+            self._expire_hot_deal(
+                accepted=False,
+                message="Горячий заказ пропущен.",
+            )
+            return
+        order["status"] = "accepted"
+        self.hot_deal["accepted"] = True
+        customer = str(order["customer"])
+        game_to_start = self._minigame_for_order(order)
+        target_type = str(order.get("target_type", "Обычный ПК"))
+        target_parameters = TARGET_TYPES[target_type]
+        difficulty_reduction = int(order.get("difficulty_reduction", 0))
+        context = {
+            "source": "hot_deal",
+            "is_hot_deal": True,
+            "customer": customer,
+            "reward": float(order["reward"]),
+            "order_id": int(order["id"]),
+            "target": str(order["target"]),
+            "target_type": target_type,
+            "difficulty": max(
+                MINIGAME_DIFFICULTY_MIN,
+                int(target_parameters["difficulty"]) - difficulty_reduction,
+            ),
+            "game_id": game_to_start,
+            "order": order,
+        }
+        self._append_messenger_message(
+            customer,
+            "outgoing",
+            f"🔥 Беру горячий заказ. Запускаю модуль: {game_to_start}.",
+            order_id=int(order["id"]),
+            is_hot_deal=True,
+        )
+        self._prepare_hack(
+            game_to_start,
+            hack_context=context,
+            difficulty_override=int(context["difficulty"]),
+        )
+        self._save_game()
+
+    def _expire_hot_deal(
+        self,
+        *,
+        accepted: bool | None = None,
+        message: str = "⏱ Время вышло. Заказ потерян.",
+    ) -> None:
+        order = self.hot_deal.get("order")
+        if not bool(self.hot_deal.get("active")) or not isinstance(order, dict):
+            return
+        was_accepted = (
+            bool(self.hot_deal.get("accepted")) if accepted is None else accepted
+        )
+        customer = str(order["customer"])
+        order["status"] = "expired" if was_accepted else "ignored"
+        if was_accepted:
+            self._change_reputation(HOT_DEAL_FAILURE_REPUTATION)
+            self.messenger_orders_processed += 1
+            self._append_messenger_message(
+                customer,
+                "incoming",
+                message,
+                order_id=int(order["id"]),
+                is_hot_deal=True,
+            )
+        else:
+            self._change_reputation(HOT_DEAL_IGNORED_REPUTATION)
+            self.messenger_messages[customer][:] = [
+                item
+                for item in self.messenger_messages[customer]
+                if not (
+                    bool(item.get("is_hot_deal"))
+                    and item.get("order_id") == order.get("id")
+                )
+            ]
+
+        operation_active = bool(
+            (self.active_hack_context or {}).get("is_hot_deal")
+            or (
+                isinstance((self.pending_hack_launch or {}).get("context"), dict)
+                and bool(
+                    (self.pending_hack_launch or {})["context"].get("is_hot_deal")
+                )
+            )
+        )
+        self.hot_deal["active"] = False
+        self.hot_deal["timer"] = 0.0
+        self.hot_deal["accepted"] = False
+        self.hot_deal["order"] = None
+        if operation_active:
+            self.pending_hack_launch = None
+            self.selected_hack_tools = set()
+            self.pending_minigame_order = None
+            self.active_hack_context = None
+            self.active_minigame = None
+            self.post_hack_mode = "actions"
+            if not self.arrested:
+                self._change_state(STATE_DESKTOP)
+        self._schedule_next_hot_deal()
+        self._sync_music_for_state()
+        self._push_notification(
+            message,
+            COLOR_MUTED,
+            sound_id="failure",
+            force=True,
+        )
+        self._save_game()
+
+    def _complete_hot_deal(self) -> str:
+        order = self.hot_deal.get("order")
+        if not bool(self.hot_deal.get("active")) or not isinstance(order, dict):
+            return "Горячий заказ уже закрыт."
+        customer = str(order["customer"])
+        reward = float(order["reward"])
+        order["status"] = "completed"
+        self.completed_orders += 1
+        self.messenger_orders_processed += 1
+        self.skill_points += SKILL_POINTS_PER_COMPLETED_ORDER
+        self.skill_points_earned += SKILL_POINTS_PER_COMPLETED_ORDER
+        self._change_reputation(HOT_DEAL_COMPLETION_REPUTATION)
+        self._change_balance(reward, f"Горячий заказ #{int(order['id']):03d}")
+        message = f"🔥 ГОРЯЧИЙ ЗАКАЗ ВЫПОЛНЕН! +{reward:.3f} BTC!"
+        self._append_messenger_message(
+            customer,
+            "incoming",
+            message,
+            order_id=int(order["id"]),
+            is_hot_deal=True,
+        )
+        self.hot_deal["active"] = False
+        self.hot_deal["timer"] = 0.0
+        self.hot_deal["accepted"] = False
+        self.hot_deal["order"] = None
+        self._schedule_next_hot_deal()
+        self._unlock_forum_if_needed()
+        if not self.story_finale_reached:
+            self._issue_due_story_order(customer)
+        self._sync_music_for_state()
+        return message
+
+    def _update_live_events(self, delta_seconds: float) -> None:
+        if not self.has_active_session or self.arrested:
+            return
+        informant_discount_dialog = (
+            bool(self.call_state.get("active"))
+            and self.call_state.get("phase") == "informant"
+            and self.call_state.get("informant_bonus") == "discount"
+        )
+        if not informant_discount_dialog:
+            self.darknet_discount_timer = max(
+                0.0,
+                self.darknet_discount_timer - delta_seconds,
+            )
+
+        if bool(self.call_state.get("threat_active")):
+            self.call_state["threat_timer"] = max(
+                0.0,
+                float(self.call_state.get("threat_timer", 0.0)) - delta_seconds,
+            )
+            if float(self.call_state["threat_timer"]) <= 0.0:
+                self._trigger_threat_intrusion()
+                return
+
+        if bool(self.hot_deal.get("active")):
+            self.hot_deal["timer"] = max(
+                0.0,
+                float(self.hot_deal.get("timer", 0.0)) - delta_seconds,
+            )
+            if float(self.hot_deal["timer"]) <= 0.0:
+                self._expire_hot_deal()
+                return
+        else:
+            self.next_hot_deal_time -= delta_seconds
+
+        if bool(self.call_state.get("active")):
+            self.call_state["elapsed"] = float(
+                self.call_state.get("elapsed", 0.0)
+            ) + delta_seconds
+            phase = str(self.call_state.get("phase"))
+            if phase == "ringing":
+                self.call_state["timer"] = max(
+                    0.0,
+                    float(self.call_state.get("timer", 0.0)) - delta_seconds,
+                )
+                self.call_state["alarm_timer"] = float(
+                    self.call_state.get("alarm_timer", 0.0)
+                ) - delta_seconds
+                if float(self.call_state["alarm_timer"]) <= 0.0:
+                    self._play_sound("sfx_alarm")
+                    self.call_state["alarm_timer"] = CALL_ALARM_REPEAT_SECONDS
+                if float(self.call_state["timer"]) <= 0.0:
+                    self._close_incoming_call(repeat_possible=True)
+                    return
+            elif phase == "informant":
+                messages = self.call_state.get("messages")
+                message_list = messages if isinstance(messages, list) else []
+                self.call_state["message_elapsed"] = float(
+                    self.call_state.get("message_elapsed", 0.0)
+                ) + delta_seconds
+                step = int(self.call_state.get("dialog_step", 0))
+                while (
+                    step + 1 < len(message_list)
+                    and float(self.call_state["message_elapsed"])
+                    >= CALL_MESSAGE_INTERVAL_SECONDS
+                ):
+                    self.call_state["message_elapsed"] = float(
+                        self.call_state["message_elapsed"]
+                    ) - CALL_MESSAGE_INTERVAL_SECONDS
+                    step += 1
+                    self.call_state["dialog_step"] = step
+                    self._play_sound("sfx_typing")
+        else:
+            self.next_call_time -= delta_seconds
+
+        if not self._live_events_can_start():
+            return
+        if (
+            self.next_call_time <= 0.0
+            and not bool(self.hot_deal.get("active"))
+            and not bool(self.call_state.get("threat_active"))
+        ):
+            self._start_incoming_call()
+            return
+        if (
+            self.next_hot_deal_time <= 0.0
+            and not bool(self.call_state.get("active"))
+            and not bool(self.call_state.get("threat_active"))
+        ):
+            self._start_hot_deal()
+
+    @staticmethod
+    def _call_button_rects() -> dict[str, pygame.Rect]:
+        width, height = CALL_BUTTON_SIZE
+        total_width = width * 2 + CALL_BUTTON_GAP
+        start_x = DESIGN_WIDTH // 2 - total_width // 2
+        return {
+            "answer": pygame.Rect(start_x, CALL_BUTTON_Y, width, height),
+            "decline": pygame.Rect(
+                start_x + width + CALL_BUTTON_GAP,
+                CALL_BUTTON_Y,
+                width,
+                height,
+            ),
+        }
+
+    @staticmethod
+    def _call_dialog_button_rect() -> pygame.Rect:
+        return pygame.Rect(CALL_DIALOG_BUTTON_RECT)
+
+    @staticmethod
+    def _call_trap_option_rect(index: int) -> pygame.Rect:
+        dialog = pygame.Rect(CALL_DIALOG_RECT)
+        return pygame.Rect(
+            dialog.x + CALL_TRAP_OPTION_SIDE_MARGIN,
+            CALL_TRAP_OPTION_START_Y
+            + index * (CALL_TRAP_OPTION_HEIGHT + CALL_TRAP_OPTION_GAP),
+            dialog.width - CALL_TRAP_OPTION_SIDE_MARGIN * 2,
+            CALL_TRAP_OPTION_HEIGHT,
+        )
+
+    def _informant_dialog_complete(self) -> bool:
+        messages = self.call_state.get("messages")
+        message_list = messages if isinstance(messages, list) else []
+        return bool(message_list) and int(self.call_state.get("dialog_step", 0)) >= (
+            len(message_list) - 1
+        ) and float(self.call_state.get("message_elapsed", 0.0)) >= min(
+            CALL_MESSAGE_INTERVAL_SECONDS,
+            len(str(message_list[-1])) / CALL_TYPING_CHARACTERS_PER_SECOND,
+        )
+
+    def _handle_incoming_call_event(self, event: pygame.event.Event) -> bool:
+        if not bool(self.call_state.get("active")):
+            return False
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_F11:
+            return False
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            if self.call_state.get("phase") == "ringing":
+                self._play_sound("sfx_click")
+                self._close_incoming_call(repeat_possible=True)
+            return True
+        if event.type != pygame.MOUSEBUTTONDOWN or event.button != 1:
+            return True
+        mouse = self._desktop_point(event.pos)
+        phase = str(self.call_state.get("phase"))
+        if phase == "ringing":
+            buttons = self._call_button_rects()
+            if buttons["answer"].collidepoint(mouse):
+                self._play_sound("sfx_click")
+                self._answer_incoming_call()
+            elif buttons["decline"].collidepoint(mouse):
+                self._play_sound("sfx_click")
+                self._close_incoming_call(repeat_possible=True)
+            return True
+        if phase == "informant":
+            if (
+                self._informant_dialog_complete()
+                and self._call_dialog_button_rect().collidepoint(mouse)
+            ):
+                self._play_sound("sfx_notify")
+                self._close_incoming_call()
+            return True
+        if phase == "trap":
+            for index in range(3):
+                if self._call_trap_option_rect(index).collidepoint(mouse):
+                    self._answer_trap_round(index)
+                    break
+            return True
+        if phase == "trap_result":
+            if self._call_dialog_button_rect().collidepoint(mouse):
+                self._close_incoming_call()
+            return True
+        if phase == "threat":
+            if self._call_dialog_button_rect().collidepoint(mouse):
+                self._play_sound("sfx_click")
+                self._close_incoming_call()
+            return True
+        return True
+
+    def _draw_phone_icon(self) -> None:
+        center = CALL_PHONE_CENTER
+        pygame.draw.circle(
+            self.screen,
+            COLOR_ACCENT,
+            self._point(center),
+            self._s(CALL_PHONE_ICON_RADIUS),
+        )
+        pygame.draw.circle(
+            self.screen,
+            COLOR_HOT_ACCENT,
+            self._point(center),
+            self._s(CALL_PHONE_ICON_RADIUS),
+            self._s(CALL_PHONE_ICON_STROKE),
+        )
+        pygame.draw.line(
+            self.screen,
+            COLOR_TEXT,
+            self._point((center[0] - 9, center[1] + 8)),
+            self._point((center[0] + 9, center[1] - 8)),
+            self._s(CALL_PHONE_ICON_STROKE + 1),
+        )
+        pygame.draw.line(
+            self.screen,
+            COLOR_TEXT,
+            self._point((center[0] - 14, center[1] + 3)),
+            self._point((center[0] - 8, center[1] + 10)),
+            self._s(CALL_PHONE_ICON_STROKE + 1),
+        )
+        pygame.draw.line(
+            self.screen,
+            COLOR_TEXT,
+            self._point((center[0] + 8, center[1] - 10)),
+            self._point((center[0] + 14, center[1] - 3)),
+            self._s(CALL_PHONE_ICON_STROKE + 1),
+        )
+
+    @staticmethod
+    def _event_display_text(text: str) -> str:
+        return (
+            text.replace("🔥", "[HOT]")
+            .replace("⏱", "[TIME]")
+            .replace("📞", "")
+            .replace("❌", "")
+            .strip()
+        )
+
+    def _draw_flame_icon(
+        self,
+        center: tuple[float, float],
+        size: int = 10,
+    ) -> None:
+        x, y = center
+        outer = (
+            (x, y - size),
+            (x + size * 0.72, y - size * 0.05),
+            (x + size * 0.55, y + size),
+            (x, y + size * 0.72),
+            (x - size * 0.62, y + size),
+            (x - size * 0.76, y),
+        )
+        inner = (
+            (x, y - size * 0.34),
+            (x + size * 0.35, y + size * 0.25),
+            (x, y + size * 0.68),
+            (x - size * 0.30, y + size * 0.20),
+        )
+        pygame.draw.polygon(
+            self.screen,
+            COLOR_ERROR,
+            [self._point(point) for point in outer],
+        )
+        pygame.draw.polygon(
+            self.screen,
+            COLOR_GOLD,
+            [self._point(point) for point in inner],
+        )
+
+    def _draw_call_button(
+        self,
+        rect: pygame.Rect,
+        label: str,
+        color: pygame.Color,
+        mouse: tuple[float, float],
+    ) -> None:
+        pygame.draw.rect(
+            self.screen,
+            color,
+            self._window_rect(rect),
+            border_radius=self._s(8),
+        )
+        if rect.collidepoint(mouse):
+            pygame.draw.rect(
+                self.screen,
+                COLOR_TEXT,
+                self._window_rect(rect),
+                width=self._s(2),
+                border_radius=self._s(8),
+            )
+        icon_kind = ""
+        if label.startswith("📞"):
+            icon_kind = "phone"
+        elif label.startswith("❌"):
+            icon_kind = "reject"
+        label_center = (rect.centerx + (8 if icon_kind else 0), rect.centery)
+        self._draw_text(
+            self._event_display_text(label),
+            label_center,
+            CALL_BUTTON_FONT_SIZE,
+            COLOR_BACKGROUND if color == COLOR_SUCCESS else COLOR_TEXT,
+            center=True,
+            bold=True,
+        )
+        if icon_kind == "phone":
+            icon_color = COLOR_BACKGROUND
+            x, y = rect.x + 31, rect.centery
+            pygame.draw.line(
+                self.screen,
+                icon_color,
+                self._point((x - 5, y + 5)),
+                self._point((x + 5, y - 5)),
+                self._s(3),
+            )
+            pygame.draw.line(
+                self.screen,
+                icon_color,
+                self._point((x - 8, y + 1)),
+                self._point((x - 4, y + 7)),
+                self._s(3),
+            )
+            pygame.draw.line(
+                self.screen,
+                icon_color,
+                self._point((x + 4, y - 7)),
+                self._point((x + 8, y - 1)),
+                self._s(3),
+            )
+        elif icon_kind == "reject":
+            icon_color = COLOR_TEXT
+            x = rect.x + 30
+            pygame.draw.line(
+                self.screen,
+                icon_color,
+                self._point((x - 6, rect.centery - 6)),
+                self._point((x + 6, rect.centery + 6)),
+                self._s(3),
+            )
+            pygame.draw.line(
+                self.screen,
+                icon_color,
+                self._point((x + 6, rect.centery - 6)),
+                self._point((x - 6, rect.centery + 6)),
+                self._s(3),
+            )
+
+    def _draw_ringing_call(self, mouse: tuple[float, float]) -> None:
+        modal = pygame.Rect(CALL_MODAL_RECT)
+        pygame.draw.rect(
+            self.screen,
+            COLOR_BACKGROUND,
+            self._window_rect(modal),
+            border_radius=self._s(CALL_MODAL_CORNER_RADIUS),
+        )
+        pygame.draw.rect(
+            self.screen,
+            COLOR_ERROR,
+            self._window_rect(modal),
+            width=self._s(CALL_MODAL_BORDER_WIDTH),
+            border_radius=self._s(CALL_MODAL_CORNER_RADIUS),
+        )
+        self._draw_phone_icon()
+        blink = int(float(self.call_state.get("elapsed", 0.0)) * 2.0) % 2 == 0
+        self._draw_text(
+            "ВХОДЯЩИЙ ВЫЗОВ",
+            (DESIGN_WIDTH // 2, CALL_TITLE_Y),
+            CALL_TITLE_FONT_SIZE,
+            COLOR_ERROR if blink else COLOR_HOT_ACCENT,
+            center=True,
+            bold=True,
+        )
+        self._draw_text(
+            str(self.call_state.get("caller_name", "Неизвестный номер")),
+            (DESIGN_WIDTH // 2, CALL_CALLER_Y),
+            CALL_CALLER_FONT_SIZE,
+            COLOR_TEXT,
+            center=True,
+        )
+        countdown = max(0, math.ceil(float(self.call_state.get("timer", 0.0))))
+        self._draw_text(
+            f"{countdown:02d}",
+            (DESIGN_WIDTH // 2, CALL_COUNTDOWN_Y),
+            CALL_COUNTDOWN_FONT_SIZE,
+            COLOR_TEXT,
+            center=True,
+            bold=True,
+        )
+        buttons = self._call_button_rects()
+        self._draw_call_button(
+            buttons["answer"],
+            CALL_ANSWER_LABEL,
+            COLOR_SUCCESS,
+            mouse,
+        )
+        self._draw_call_button(
+            buttons["decline"],
+            CALL_DECLINE_LABEL,
+            COLOR_ERROR,
+            mouse,
+        )
+
+    def _draw_call_dialog_frame(self, title: str) -> pygame.Rect:
+        dialog = pygame.Rect(CALL_DIALOG_RECT)
+        pygame.draw.rect(
+            self.screen,
+            COLOR_BACKGROUND,
+            self._window_rect(dialog),
+            border_radius=self._s(CALL_MODAL_CORNER_RADIUS),
+        )
+        pygame.draw.rect(
+            self.screen,
+            COLOR_ERROR,
+            self._window_rect(dialog),
+            width=self._s(CALL_MODAL_BORDER_WIDTH),
+            border_radius=self._s(CALL_MODAL_CORNER_RADIUS),
+        )
+        self._draw_text(
+            title,
+            (dialog.centerx, CALL_DIALOG_TITLE_Y),
+            CALL_TITLE_FONT_SIZE,
+            COLOR_HOT_ACCENT,
+            center=True,
+            bold=True,
+        )
+        return dialog
+
+    def _draw_informant_dialog(self, mouse: tuple[float, float]) -> None:
+        self._draw_call_dialog_frame("ЗАШИФРОВАННЫЙ КАНАЛ // ИНФОРМАТОР")
+        messages_value = self.call_state.get("messages")
+        messages = messages_value if isinstance(messages_value, list) else []
+        current_step = min(
+            len(messages) - 1,
+            max(0, int(self.call_state.get("dialog_step", 0))),
+        )
+        y = CALL_DIALOG_TEXT_START_Y
+        font = self._font(CALL_DIALOG_FONT_SIZE)
+        for index, message_value in enumerate(messages[: current_step + 1]):
+            message = str(message_value)
+            if index == current_step:
+                visible_count = max(
+                    1,
+                    int(
+                        float(self.call_state.get("message_elapsed", 0.0))
+                        * CALL_TYPING_CHARACTERS_PER_SECOND
+                    ),
+                )
+                message = message[:visible_count]
+            lines = self._wrap_text(
+                f"> {message}",
+                font,
+                self._s(CALL_DIALOG_TEXT_WIDTH),
+            )
+            for line in lines:
+                self._draw_text(
+                    line,
+                    (CALL_DIALOG_TEXT_X, y),
+                    CALL_DIALOG_FONT_SIZE,
+                    COLOR_TEXT if index < current_step else COLOR_SUCCESS,
+                )
+                y += CALL_DIALOG_LINE_GAP
+        if self._informant_dialog_complete():
+            button = self._call_dialog_button_rect()
+            self._draw_call_button(
+                button,
+                "Спасибо",
+                COLOR_SUCCESS,
+                mouse,
+            )
+
+    def _draw_trap_dialog(self, mouse: tuple[float, float]) -> None:
+        phase = str(self.call_state.get("phase"))
+        self._draw_call_dialog_frame("ВЫЗОВ // ТЕХПОДДЕРЖКА ПРОВАЙДЕРА")
+        self._draw_text(
+            "Привет, это техподдержка вашего провайдера.",
+            (DESIGN_WIDTH // 2, 198),
+            CALL_DIALOG_FONT_SIZE,
+            COLOR_TEXT,
+            center=True,
+        )
+        if phase == "trap_result":
+            errors = int(self.call_state.get("trap_errors", 0))
+            self._draw_text(
+                str(self.call_state.get("trap_result", "Связь прервана.")),
+                (DESIGN_WIDTH // 2, 305),
+                CALL_TITLE_FONT_SIZE,
+                COLOR_SUCCESS if errors == 0 else COLOR_ERROR,
+                center=True,
+                bold=True,
+            )
+            self._draw_text(
+                "+2% репутации" if errors == 0 else f"Ошибок: {errors} • подозрение +{errors * 5}%",
+                (DESIGN_WIDTH // 2, 348),
+                CALL_DIALOG_SMALL_FONT_SIZE,
+                COLOR_SUCCESS if errors == 0 else COLOR_ERROR,
+                center=True,
+            )
+            self._draw_call_button(
+                self._call_dialog_button_rect(),
+                "Завершить",
+                COLOR_ERROR if errors else COLOR_SUCCESS,
+                mouse,
+            )
+            return
+
+        round_index = min(
+            len(CALL_TRAP_ROUNDS) - 1,
+            max(0, int(self.call_state.get("dialog_step", 0))),
+        )
+        trap_round = CALL_TRAP_ROUNDS[round_index]
+        self._draw_text(
+            f"РАУНД {round_index + 1}/3",
+            (DESIGN_WIDTH // 2, 235),
+            CALL_DIALOG_SMALL_FONT_SIZE,
+            COLOR_HOT_ACCENT,
+            center=True,
+            bold=True,
+        )
+        question_lines = self._wrap_text(
+            str(trap_round["question"]),
+            self._font(CALL_DIALOG_FONT_SIZE, True),
+            self._s(CALL_DIALOG_TEXT_WIDTH),
+        )
+        question_y = 273
+        for line in question_lines[:2]:
+            self._draw_text(
+                line,
+                (DESIGN_WIDTH // 2, question_y),
+                CALL_DIALOG_FONT_SIZE,
+                COLOR_TEXT,
+                center=True,
+                bold=True,
+            )
+            question_y += 25
+        options_value = trap_round["options"]
+        options = options_value if isinstance(options_value, tuple) else ()
+        for index, option in enumerate(options):
+            rect = self._call_trap_option_rect(index)
+            self._draw_call_button(
+                rect,
+                str(option),
+                COLOR_ACCENT if not rect.collidepoint(mouse) else COLOR_HOT_ACCENT,
+                mouse,
+            )
+
+    def _draw_threat_dialog(self, mouse: tuple[float, float]) -> None:
+        self._draw_call_dialog_frame("ЗАБЛОКИРОВАННЫЙ НОМЕР // УГРОЗА")
+        lines = self._wrap_text(
+            CALL_THREAT_MESSAGE,
+            self._font(CALL_TITLE_FONT_SIZE, True),
+            self._s(CALL_DIALOG_TEXT_WIDTH - 50),
+        )
+        y = 260
+        for line in lines:
+            self._draw_text(
+                line,
+                (DESIGN_WIDTH // 2, y),
+                CALL_TITLE_FONT_SIZE,
+                COLOR_ERROR,
+                center=True,
+                bold=True,
+            )
+            y += 36
+        self._draw_text(
+            "После закрытия вызова откройте DarkNet → VPN или активируйте заряд VPN.",
+            (DESIGN_WIDTH // 2, 392),
+            CALL_DIALOG_SMALL_FONT_SIZE,
+            COLOR_TEXT,
+            center=True,
+        )
+        self._draw_call_button(
+            self._call_dialog_button_rect(),
+            "Понял",
+            COLOR_ERROR,
+            mouse,
+        )
+
+    def _draw_incoming_call(self) -> None:
+        if not bool(self.call_state.get("active")):
+            return
+        dim = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+        dim.fill((0, 0, 0, 158))
+        self.screen.blit(dim, (0, 0))
+        mouse = self._desktop_point(pygame.mouse.get_pos())
+        phase = str(self.call_state.get("phase"))
+        if phase == "ringing":
+            self._draw_ringing_call(mouse)
+        elif phase == "informant":
+            self._draw_informant_dialog(mouse)
+        elif phase in ("trap", "trap_result"):
+            self._draw_trap_dialog(mouse)
+        elif phase == "threat":
+            self._draw_threat_dialog(mouse)
+
+    @staticmethod
+    def _format_countdown(seconds_left: float) -> str:
+        seconds_total = max(0, math.ceil(seconds_left))
+        minutes, seconds = divmod(seconds_total, 60)
+        return f"{minutes:02d}:{seconds:02d}"
+
+    def _draw_hot_deal_timer(self) -> None:
+        if not bool(self.hot_deal.get("active")):
+            return
+        timer_rect = pygame.Rect(HOT_DEAL_TIMER_RECT)
+        pulse = int(self.total_elapsed * 4.0) % 2 == 0
+        pygame.draw.rect(
+            self.screen,
+            COLOR_ERROR if pulse else COLOR_HOT_ACCENT,
+            self._window_rect(timer_rect),
+            border_radius=self._s(8),
+        )
+        pygame.draw.rect(
+            self.screen,
+            COLOR_GOLD,
+            self._window_rect(timer_rect),
+            width=self._s(2),
+            border_radius=self._s(8),
+        )
+        self._draw_flame_icon((timer_rect.x + 18, timer_rect.y + 14), size=7)
+        self._draw_text(
+            "HOT DEAL x3",
+            (timer_rect.centerx + 7, timer_rect.y + 7),
+            HOT_DEAL_TIMER_LABEL_FONT_SIZE,
+            COLOR_TEXT,
+            center=True,
+            bold=True,
+        )
+        self._draw_text(
+            self._format_countdown(float(self.hot_deal.get("timer", 0.0))),
+            (timer_rect.centerx, timer_rect.y + 25),
+            HOT_DEAL_TIMER_FONT_SIZE,
+            COLOR_TEXT,
+            center=True,
+            bold=True,
+        )
+
+    def _draw_threat_timer(self) -> None:
+        if not bool(self.call_state.get("threat_active")):
+            return
+        timer_rect = pygame.Rect(CALL_THREAT_TIMER_RECT)
+        blink = int(self.total_elapsed * 2.0) % 2 == 0
+        pygame.draw.rect(
+            self.screen,
+            COLOR_BACKGROUND,
+            self._window_rect(timer_rect),
+            border_radius=self._s(6),
+        )
+        pygame.draw.rect(
+            self.screen,
+            COLOR_ERROR if blink else COLOR_HOT_ACCENT,
+            self._window_rect(timer_rect),
+            width=self._s(3),
+            border_radius=self._s(6),
+        )
+        self._draw_text(
+            f"СМЕНИ VPN  {self._format_countdown(float(self.call_state.get('threat_timer', 0.0)))}",
+            timer_rect.center,
+            CALL_DIALOG_SMALL_FONT_SIZE,
+            COLOR_ERROR if blink else COLOR_TEXT,
+            center=True,
+            bold=True,
+        )
+
+    def _draw_live_event_overlays(self) -> None:
+        if self.arrested:
+            return
+        self._draw_hot_deal_timer()
+        self._draw_threat_timer()
+        self._draw_incoming_call()
+
+    def _apply_call_screen_shake(self) -> None:
+        if (
+            not bool(self.call_state.get("active"))
+            or self.call_state.get("phase") != "ringing"
+        ):
+            return
+        shake = CALL_SHAKE_PIXELS
+        phase = int(
+            float(self.call_state.get("elapsed", 0.0))
+            * CALL_SHAKE_UPDATES_PER_SECOND
+            * 2.0
+        ) % 2
+        offset_x = -shake if phase == 0 else shake
+        offset_y = 0
+        snapshot = self.screen.copy()
+        self.screen.fill(COLOR_BACKGROUND)
+        self.screen.blit(
+            snapshot,
+            (
+                round(offset_x * self.scale),
+                round(offset_y * self.scale),
+            ),
+        )
 
     # ------------------------------------------------------------------
     # Масштабирование и текст
@@ -5941,6 +7291,11 @@ class ZeroDayApp:
                 self._finish_post_hack("Сессия закрыта без действия", COLOR_ERROR)
             self._save_game()
             self.running = False
+            return
+
+        if bool(self.call_state.get("active")) and self._handle_incoming_call_event(
+            event
+        ):
             return
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -6472,6 +7827,16 @@ class ZeroDayApp:
             "game_time_elapsed": self.game_time_elapsed,
             "hacker_attack_timer": self.hacker_attack_timer,
             "hacker_attacks_survived": self.hacker_attacks_survived,
+            "live_events": {
+                "next_call_time": self.next_call_time,
+                "call_state": self.call_state,
+                "next_hot_deal_time": self.next_hot_deal_time,
+                "hot_deal": self.hot_deal,
+                "darknet_discount_timer": self.darknet_discount_timer,
+                "informant_pending_difficulty_bonus": (
+                    self.informant_pending_difficulty_bonus
+                ),
+            },
             "attempt_number": self.attempt_number,
             "total_arrests": self.total_arrests,
             "arrested": self.arrested,
@@ -6575,6 +7940,137 @@ class ZeroDayApp:
         if not isinstance(value, list):
             return []
         return [dict(item) for item in value if isinstance(item, dict)]
+
+    def _load_live_event_state(self, payload: dict[str, object]) -> None:
+        live_value = payload.get("live_events")
+        if not isinstance(live_value, dict):
+            return
+        self.next_call_time = max(
+            0.0,
+            float(live_value.get("next_call_time", self.next_call_time)),
+        )
+        self.next_hot_deal_time = max(
+            0.0,
+            float(live_value.get("next_hot_deal_time", self.next_hot_deal_time)),
+        )
+        self.darknet_discount_timer = max(
+            0.0,
+            float(
+                live_value.get(
+                    "darknet_discount_timer",
+                    self.darknet_discount_timer,
+                )
+            ),
+        )
+        self.informant_pending_difficulty_bonus = min(
+            1,
+            max(
+                0,
+                int(
+                    live_value.get(
+                        "informant_pending_difficulty_bonus",
+                        self.informant_pending_difficulty_bonus,
+                    )
+                ),
+            ),
+        )
+
+        loaded_call = live_value.get("call_state")
+        if isinstance(loaded_call, dict):
+            restored_call = self._blank_call_state()
+            valid_types = {str(item["type"]) for item in call_types}
+            call_type_value = loaded_call.get("type")
+            call_type = (
+                str(call_type_value)
+                if call_type_value is not None
+                and str(call_type_value) in valid_types
+                else None
+            )
+            valid_phases = {
+                "idle",
+                "ringing",
+                "informant",
+                "trap",
+                "trap_result",
+                "threat",
+            }
+            phase = str(loaded_call.get("phase", "idle"))
+            if phase not in valid_phases:
+                phase = "idle"
+            messages_value = loaded_call.get("messages")
+            messages = (
+                [str(message) for message in messages_value[:5]]
+                if isinstance(messages_value, list)
+                else []
+            )
+            restored_call.update(
+                {
+                    "active": bool(loaded_call.get("active"))
+                    and call_type is not None
+                    and phase != "idle",
+                    "timer": max(0.0, float(loaded_call.get("timer", 0.0))),
+                    "type": call_type,
+                    "answered": bool(loaded_call.get("answered")),
+                    "dialog_step": max(
+                        0,
+                        int(loaded_call.get("dialog_step", 0)),
+                    ),
+                    "phase": phase,
+                    "caller_name": str(loaded_call.get("caller_name", "")),
+                    "elapsed": max(0.0, float(loaded_call.get("elapsed", 0.0))),
+                    "alarm_timer": max(
+                        0.0,
+                        float(loaded_call.get("alarm_timer", 0.0)),
+                    ),
+                    "messages": messages,
+                    "message_elapsed": max(
+                        0.0,
+                        float(loaded_call.get("message_elapsed", 0.0)),
+                    ),
+                    "informant_bonus": loaded_call.get("informant_bonus"),
+                    "informant_bonus_target": str(
+                        loaded_call.get("informant_bonus_target", "")
+                    ),
+                    "trap_errors": min(
+                        len(CALL_TRAP_ROUNDS),
+                        max(0, int(loaded_call.get("trap_errors", 0))),
+                    ),
+                    "trap_result_applied": bool(
+                        loaded_call.get("trap_result_applied")
+                    ),
+                    "trap_result": str(loaded_call.get("trap_result", "")),
+                    "threat_active": bool(loaded_call.get("threat_active")),
+                    "threat_timer": max(
+                        0.0,
+                        float(loaded_call.get("threat_timer", 0.0)),
+                    ),
+                }
+            )
+            self.call_state = restored_call
+
+        loaded_hot = live_value.get("hot_deal")
+        if isinstance(loaded_hot, dict):
+            order_value = loaded_hot.get("order")
+            order = dict(order_value) if isinstance(order_value, dict) else None
+            customer = str(order.get("customer", "")) if order is not None else ""
+            valid_order = order is not None and customer in self._customer_nicks()
+            self.hot_deal = {
+                "active": bool(loaded_hot.get("active"))
+                and valid_order
+                and not bool(self.call_state.get("active"))
+                and not bool(self.call_state.get("threat_active")),
+                "order": order if valid_order else None,
+                "timer": max(0.0, float(loaded_hot.get("timer", 0.0))),
+                "reward_multiplier": HOT_DEAL_REWARD_MULTIPLIER,
+                "accepted": bool(loaded_hot.get("accepted")),
+            }
+
+        if bool(self.call_state.get("active")):
+            self.audio_manager.set_music_duck(CALL_MUSIC_DUCK_MULTIPLIER)
+            if self.call_state.get("phase") == "ringing":
+                self._play_sound("sfx_alarm")
+        else:
+            self.audio_manager.set_music_duck(1.0)
 
     def _load_game(self, path: Path, *, notify: bool = True) -> bool:
         try:
@@ -6802,6 +8298,9 @@ class ZeroDayApp:
             )
             self.arrest_reason = str(payload.get("arrest_reason", ""))
             self.has_active_session = True
+            self._load_live_event_state(payload)
+            if self.arrested:
+                self._reset_live_events()
             self.active_minigame = None
             self.pending_minigame_order = None
             self.pending_hack_launch = None
@@ -6831,6 +8330,15 @@ class ZeroDayApp:
                         and int(active_order.get("id", -2)) == operation_order_id
                     ):
                         self.active_hack_context["order"] = active_order
+                if bool(self.active_hack_context.get("is_hot_deal")):
+                    hot_order = self.hot_deal.get("order")
+                    if (
+                        bool(self.hot_deal.get("active"))
+                        and isinstance(hot_order, dict)
+                        and int(hot_order.get("id", -2))
+                        == int(self.active_hack_context.get("order_id", -1))
+                    ):
+                        self.active_hack_context["order"] = hot_order
                 operation_mode = str(operation.get("mode", "actions"))
                 self.post_hack_mode = (
                     operation_mode
@@ -6903,6 +8411,7 @@ class ZeroDayApp:
         self.arrested = True
         self.total_arrests += 1
         self.arrest_reason = reason
+        self._reset_live_events()
         self._play_sound("alarm")
         self.browser_input_focused = False
         self.dragged_window = None
@@ -7004,10 +8513,21 @@ class ZeroDayApp:
             None,
         )
 
-    def _purchase_darknet_product(self, product: dict[str, object]) -> bool:
+    def _darknet_effective_price(self, product: dict[str, object]) -> float:
         price = float(product["price"])
+        if self.darknet_discount_timer > 0.0:
+            price *= 1.0 - CALL_INFORMANT_DISCOUNT_RATE
+        return round(price, 6)
+
+    def _purchase_darknet_product(self, product: dict[str, object]) -> bool:
+        price = self._darknet_effective_price(product)
         vpn_charge_value = product.get("vpn_charges")
-        if vpn_charge_value is not None and self.vpn_charges >= VPN_MAX_CHARGES:
+        threat_active = bool(self.call_state.get("threat_active"))
+        if (
+            vpn_charge_value is not None
+            and self.vpn_charges >= VPN_MAX_CHARGES
+            and not threat_active
+        ):
             self._push_notification("VPN уже заряжен до максимума", COLOR_ERROR)
             return False
         if self.btc_balance + 1e-12 < price:
@@ -7023,7 +8543,12 @@ class ZeroDayApp:
             added_charges = self._set_vpn_charges(
                 self.vpn_charges + int(vpn_charge_value)
             )
-            result = f"VPN: +{added_charges} зарядов"
+            result = (
+                f"VPN: +{added_charges} зарядов"
+                if added_charges > 0
+                else "VPN-маршрут обновлён"
+            )
+            self._resolve_threat_vpn_success()
         elif product_id == "skill_course":
             self.skill_points += 1
             self.skill_points_earned += 1
@@ -7128,6 +8653,11 @@ class ZeroDayApp:
             ),
         )
         sequence = self.messenger_order_sequence
+        difficulty_reduction = min(1, self.informant_pending_difficulty_bonus)
+        self.informant_pending_difficulty_bonus = max(
+            0,
+            self.informant_pending_difficulty_bonus - difficulty_reduction,
+        )
         return {
             "id": sequence,
             "customer": customer,
@@ -7140,6 +8670,7 @@ class ZeroDayApp:
             "deadline_at": time.time() + deadline_minutes * 60,
             "deadline_minutes": deadline_minutes,
             "is_story": False,
+            "difficulty_reduction": difficulty_reduction,
             "status": "pending",
         }
 
@@ -7195,6 +8726,8 @@ class ZeroDayApp:
 
     @staticmethod
     def _order_message(order: dict[str, object]) -> str:
+        if bool(order.get("is_hot_deal")):
+            return ZeroDayApp._hot_deal_message(order)
         if bool(order.get("is_tutorial")):
             return (
                 "ОБУЧЕНИЕ // ПЕРВЫЙ КОНТРАКТ\n"
@@ -7227,6 +8760,7 @@ class ZeroDayApp:
         *,
         order_id: int | None = None,
         is_story: bool = False,
+        is_hot_deal: bool = False,
     ) -> None:
         messages = self.messenger_messages[customer]
         messages.append(
@@ -7235,6 +8769,7 @@ class ZeroDayApp:
                 "text": text,
                 "order_id": order_id,
                 "is_story": is_story,
+                "is_hot_deal": is_hot_deal,
             }
         )
         if len(messages) > MESSENGER_HISTORY_LIMIT:
@@ -7293,7 +8828,10 @@ class ZeroDayApp:
         color: pygame.Color = COLOR_SUCCESS,
         *,
         sound_id: str | None = "notification",
+        force: bool = False,
     ) -> None:
+        if bool(self.hot_deal.get("active")) and not force:
+            return
         self.desktop_notifications.append(
             {
                 "message": message,
@@ -7444,6 +8982,7 @@ class ZeroDayApp:
             and not self.story_finale_acknowledged
             and not self.arrested
         ):
+            self._reset_live_events()
             self._change_state(STATE_STORY_FINALE)
             return True
         return False
@@ -7530,7 +9069,13 @@ class ZeroDayApp:
             self._start_intrusion_defense()
 
     def _update_hacker_attack_timer(self, delta_seconds: float) -> None:
-        if not self.has_active_session or self.state != STATE_DESKTOP:
+        if (
+            not self.has_active_session
+            or self.state != STATE_DESKTOP
+            or bool(self.call_state.get("active"))
+            or bool(self.call_state.get("threat_active"))
+            or bool(self.hot_deal.get("active"))
+        ):
             return
         self.hacker_attack_timer -= delta_seconds
         if (
@@ -7635,6 +9180,7 @@ class ZeroDayApp:
             game_to_start = self._minigame_for_order(order)
             target_type = str(order.get("target_type", "Обычный ПК"))
             target_parameters = TARGET_TYPES[target_type]
+            difficulty_reduction = int(order.get("difficulty_reduction", 0))
             order_context = {
                 "source": "order",
                 "customer": customer,
@@ -7642,7 +9188,10 @@ class ZeroDayApp:
                 "order_id": int(order["id"]),
                 "target": str(order["target"]),
                 "target_type": target_type,
-                "difficulty": int(target_parameters["difficulty"]),
+                "difficulty": max(
+                    MINIGAME_DIFFICULTY_MIN,
+                    int(target_parameters["difficulty"]) - difficulty_reduction,
+                ),
                 "game_id": game_to_start,
                 "order": order,
             }
@@ -7818,6 +9367,7 @@ class ZeroDayApp:
         self.pending_hack_launch = None
         self.selected_hack_tools = set()
         self.post_hack_mode = "actions"
+        self._reset_live_events()
         self._reset_messenger()
         self._schedule_next_hacker_attack()
 
@@ -8432,12 +9982,15 @@ class ZeroDayApp:
         selected = self.messenger_selected_chat
         if selected == MESSENGER_FORUM_ID:
             return False
-        order = self.messenger_active_orders.get(selected)
+        order = self._visible_messenger_order(selected)
         if order is None or order.get("status") != "pending":
             return False
         for decision, button_rect in self._messenger_action_rects(window).items():
             if button_rect.collidepoint(mouse):
-                self._process_order(selected, decision)
+                if bool(order.get("is_hot_deal")):
+                    self._process_hot_deal(decision)
+                else:
+                    self._process_order(selected, decision)
                 return True
         return False
 
@@ -8490,10 +10043,14 @@ class ZeroDayApp:
             self.desktop_launcher_open = not self.desktop_launcher_open
             return True
         if pygame.Rect(DESKTOP_VPN_RECT).collidepoint(mouse):
-            self._push_notification(
-                f"VPN charges: {self.vpn_charges}/{VPN_MAX_CHARGES}",
-                COLOR_SUCCESS if self.vpn_charges > 0 else COLOR_ERROR,
-            )
+            if bool(self.call_state.get("threat_active")) and self.vpn_charges > 0:
+                self._set_vpn_charges(self.vpn_charges - 1)
+                self._resolve_threat_vpn_success()
+            else:
+                self._push_notification(
+                    f"VPN charges: {self.vpn_charges}/{VPN_MAX_CHARGES}",
+                    COLOR_SUCCESS if self.vpn_charges > 0 else COLOR_ERROR,
+                )
             return True
         if mouse[1] < DESKTOP_TASKBAR_HEIGHT:
             self.desktop_launcher_open = False
@@ -8706,6 +10263,12 @@ class ZeroDayApp:
         launch = self.pending_hack_launch
         context_value = launch.get("context") if launch is not None else None
         context = context_value if isinstance(context_value, dict) else None
+        if context is not None and bool(context.get("is_hot_deal")):
+            self._expire_hot_deal(
+                accepted=True,
+                message="⏱ Горячий заказ отменён и потерян.",
+            )
+            return
         resolved_order = False
         if context is not None and context.get("source") == "order":
             order_reference = context.get("order")
@@ -8927,6 +10490,16 @@ class ZeroDayApp:
             return
         game_succeeded = report_result and minigame is not None and minigame.success
         context = self.active_hack_context or self.pending_minigame_order
+        if (
+            context is not None
+            and bool(context.get("is_hot_deal"))
+            and not game_succeeded
+        ):
+            self._expire_hot_deal(
+                accepted=True,
+                message="⏱ Горячий заказ провален и потерян.",
+            )
+            return
         if context is not None and game_succeeded:
             self.completed_hacks += 1
             order_reference = context.get("order")
@@ -9029,6 +10602,14 @@ class ZeroDayApp:
         delivered_order: bool = False,
     ) -> None:
         context = self.active_hack_context
+        if (
+            context is not None
+            and bool(context.get("is_hot_deal"))
+            and bool(self.hot_deal.get("active"))
+        ):
+            message = self._complete_hot_deal()
+            color = COLOR_GOLD
+            delivered_order = True
         order_reference = context.get("order") if context is not None else None
         resolved_order = isinstance(order_reference, dict)
         tutorial_order = resolved_order and bool(order_reference.get("is_tutorial"))
@@ -9076,6 +10657,14 @@ class ZeroDayApp:
         context = self.active_hack_context
         if context is None:
             return False
+        if bool(context.get("is_hot_deal")):
+            message = self._complete_hot_deal()
+            self._finish_post_hack(
+                message,
+                COLOR_GOLD,
+                delivered_order=True,
+            )
+            return True
         customer_value = context.get("customer")
         reward_value = context.get("reward")
         order_id_value = context.get("order_id")
@@ -9208,6 +10797,7 @@ class ZeroDayApp:
             self._deliver_order_information()
         elif action == "proxy":
             added_charges = self._set_vpn_charges(self.vpn_charges + 1)
+            self._resolve_threat_vpn_success()
             message = (
                 f"Прокси настроен: заряды VPN {self.vpn_charges}"
                 if added_charges > 0
@@ -9327,6 +10917,7 @@ class ZeroDayApp:
         ):
             self._change_suspicion(0.0, "Шкала подозрения достигла 100%")
         self._update_desktop_timers(delta_seconds)
+        self._update_live_events(delta_seconds)
 
         if self.state == STATE_CRT and self.state_elapsed >= CRT_DURATION_SECONDS:
             self._change_state(STATE_BOOT)
@@ -10814,8 +12405,17 @@ class ZeroDayApp:
                 COLOR_TEXT,
                 bold=selected,
             )
-            active_order = self.messenger_active_orders[nick]
-            if active_order is not None and bool(active_order["is_story"]):
+            hot_order = self._hot_deal_order_for_customer(nick)
+            active_order = hot_order or self.messenger_active_orders[nick]
+            if hot_order is not None:
+                self._draw_flame_icon(
+                    (
+                        row.right - MESSENGER_STORY_DOT_RIGHT_MARGIN,
+                        row.centery,
+                    ),
+                    size=6,
+                )
+            elif active_order is not None and bool(active_order["is_story"]):
                 pygame.draw.circle(
                     self.screen,
                     COLOR_ERROR,
@@ -10972,14 +12572,18 @@ class ZeroDayApp:
         window: DesktopWindow,
         mouse: tuple[float, float],
     ) -> None:
-        order = self.messenger_active_orders.get(self.messenger_selected_chat)
+        order = self._visible_messenger_order(self.messenger_selected_chat)
         labels = {"accepted": "Принять", "rejected": "Отклонить"}
-        if order is not None and bool(order.get("is_story")):
+        if order is not None and bool(order.get("is_hot_deal")):
+            labels = {"accepted": "HOT // Взять", "rejected": "Пропустить"}
+        elif order is not None and bool(order.get("is_story")):
             labels = {
                 "accepted": str(order.get("accept_label", labels["accepted"])),
                 "rejected": str(order.get("reject_label", labels["rejected"])),
             }
         colors = {"accepted": COLOR_SUCCESS, "rejected": COLOR_ERROR}
+        if order is not None and bool(order.get("is_hot_deal")):
+            colors["accepted"] = COLOR_GOLD
         for decision, button_rect in self._messenger_action_rects(window).items():
             hovered = button_rect.collidepoint(mouse)
             pygame.draw.rect(
@@ -11017,7 +12621,7 @@ class ZeroDayApp:
     ) -> None:
         right = self._messenger_right_rect(window)
         selected = self.messenger_selected_chat
-        active_order = self.messenger_active_orders.get(selected)
+        active_order = self._visible_messenger_order(selected)
         has_pending_order = (
             active_order is not None and active_order.get("status") == "pending"
         )
@@ -11037,14 +12641,21 @@ class ZeroDayApp:
         font = self._font(MESSENGER_TEXT_FONT_SIZE)
         layouts: list[dict[str, object]] = []
         for message in self.messenger_messages[selected]:
-            lines = self._wrap_text(str(message["text"]), font, text_width_pixels)
+            display_text = self._event_display_text(str(message["text"]))
+            lines = self._wrap_text(display_text, font, text_width_pixels)
             timer_text = ""
+            timer_is_hot = False
             if (
                 active_order is not None
                 and message.get("order_id") == active_order.get("id")
                 and active_order.get("status") == "pending"
             ):
-                timer_text = self._format_deadline(float(active_order["deadline_at"]))
+                timer_is_hot = bool(active_order.get("is_hot_deal"))
+                timer_text = (
+                    self._format_countdown(float(self.hot_deal.get("timer", 0.0)))
+                    if timer_is_hot
+                    else self._format_deadline(float(active_order["deadline_at"]))
+                )
             height = max(
                 MESSENGER_BUBBLE_MIN_HEIGHT,
                 MESSENGER_BUBBLE_PADDING * 2
@@ -11056,6 +12667,7 @@ class ZeroDayApp:
                     "message": message,
                     "lines": lines,
                     "timer": timer_text,
+                    "timer_is_hot": timer_is_hot,
                     "height": height,
                 }
             )
@@ -11097,12 +12709,28 @@ class ZeroDayApp:
                 else right.x + MESSENGER_MESSAGE_MARGIN
             )
             bubble_rect = pygame.Rect(x, y, bubble_width, height)
+            is_hot_message = bool(message.get("is_hot_deal"))
+            bubble_color = (
+                COLOR_GOLD_DARK
+                if is_hot_message
+                else COLOR_MESSAGE_OUTGOING
+                if outgoing
+                else COLOR_MESSAGE_INCOMING
+            )
             pygame.draw.rect(
                 self.screen,
-                COLOR_MESSAGE_OUTGOING if outgoing else COLOR_MESSAGE_INCOMING,
+                bubble_color,
                 self._window_rect(bubble_rect),
                 border_radius=self._s(MESSENGER_BUBBLE_CORNER_RADIUS),
             )
+            if is_hot_message:
+                pygame.draw.rect(
+                    self.screen,
+                    COLOR_GOLD,
+                    self._window_rect(bubble_rect),
+                    width=self._s(2),
+                    border_radius=self._s(MESSENGER_BUBBLE_CORNER_RADIUS),
+                )
             text_y = y + MESSENGER_BUBBLE_PADDING
             for line in list(layout["lines"]):
                 self._draw_text(
@@ -11114,9 +12742,12 @@ class ZeroDayApp:
                 text_y += MESSENGER_BUBBLE_LINE_HEIGHT
             timer_text = str(layout["timer"])
             if timer_text:
+                timer_is_hot = bool(layout.get("timer_is_hot"))
                 deadline_at = float(active_order["deadline_at"])
                 timer_color = (
-                    COLOR_ERROR
+                    COLOR_GOLD
+                    if timer_is_hot
+                    else COLOR_ERROR
                     if deadline_at - time.time() <= MESSENGER_TIMER_WARNING_SECONDS
                     else COLOR_SUCCESS
                 )
@@ -11149,8 +12780,13 @@ class ZeroDayApp:
         if has_pending_order:
             self._draw_messenger_actions(window, mouse)
         else:
+            footer_text = (
+                "[HOT] Горячий заказ принят — завершите операцию до конца таймера"
+                if active_order is not None and bool(active_order.get("is_hot_deal"))
+                else "Кликните по чату ещё раз, чтобы получить новый заказ"
+            )
             self._draw_text(
-                "Кликните по чату ещё раз, чтобы получить новый заказ",
+                footer_text,
                 (
                     right.centerx,
                     right.bottom - MESSENGER_NO_ORDER_BOTTOM_OFFSET,
@@ -11534,8 +13170,13 @@ class ZeroDayApp:
             if category_id == self.darknet_category
         )
         area_left = content.x + DARKNET_SIDEBAR_WIDTH
+        category_heading = category_label.upper()
+        if self.darknet_discount_timer > 0.0:
+            category_heading += (
+                f"  •  СКИДКА -30% {self._format_countdown(self.darknet_discount_timer)}"
+            )
         self._draw_text(
-            category_label.upper(),
+            category_heading,
             (
                 area_left + DARKNET_HEADER_TEXT_OFFSET[0],
                 content.y + DARKNET_HEADER_TEXT_OFFSET[1],
@@ -11559,10 +13200,12 @@ class ZeroDayApp:
         for slot, product in enumerate(self._darknet_visible_products()):
             card = self._darknet_card_rect(window, slot)
             buy_rect = self._darknet_buy_rect(card)
-            has_funds = self.btc_balance + 1e-12 >= float(product["price"])
+            effective_price = self._darknet_effective_price(product)
+            has_funds = self.btc_balance + 1e-12 >= effective_price
             vpn_at_capacity = (
                 product.get("vpn_charges") is not None
                 and self.vpn_charges >= VPN_MAX_CHARGES
+                and not bool(self.call_state.get("threat_active"))
             )
             can_purchase = has_funds and not vpn_at_capacity
             hovered = card.collidepoint(mouse)
@@ -11611,8 +13254,11 @@ class ZeroDayApp:
                     DARKNET_TEXT_FONT_SIZE,
                     COLOR_TEXT,
                 )
+            price_label = f"BTC {effective_price:.3f}"
+            if self.darknet_discount_timer > 0.0:
+                price_label += "  -30%"
             self._draw_text(
-                f"BTC {float(product['price']):.3f}",
+                price_label,
                 (
                     card.x + DARKNET_CARD_PRICE_OFFSET[0],
                     card.y + DARKNET_CARD_PRICE_OFFSET[1],
@@ -12988,7 +14634,7 @@ class ZeroDayApp:
                 bold=True,
             )
             message = self._fit_text(
-                str(notification["message"]),
+                self._event_display_text(str(notification["message"])),
                 self._font(DESKTOP_NOTIFICATION_TEXT_FONT_SIZE),
                 self._s(width - DESKTOP_NOTIFICATION_PADDING_X * 2),
             )
@@ -13794,6 +15440,8 @@ class ZeroDayApp:
             fade = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
             fade.fill((*COLOR_TASKBAR[:3], round(SCREEN_TRANSITION_MAX_ALPHA * ratio)))
             self.screen.blit(fade, (0, 0))
+        self._draw_live_event_overlays()
+        self._apply_call_screen_shake()
         pygame.display.flip()
 
     # ------------------------------------------------------------------
