@@ -578,14 +578,14 @@
       </p>
       <div class="file-chip" aria-label="Сведения о файле">
         <span>АРХИВ: <b>zero_day_game.zip</b></span>
-        <span>РАЗМЕР: <b>около 111 KB</b></span>
+        <span>РАЗМЕР: <b>около 121 KB</b></span>
         <span id="file-stats">КОД: подсчёт…</span>
       </div>
       <div class="actions">
-        <a class="download-button direct-download" href="https://github.com/smmetrix/codegame/raw/f57c23e51fe3a361fc75044cb5fbe394e8e2eaa6/zero_day_game.zip" download="zero_day_game.zip" target="_blank" rel="noopener">
+        <a class="download-button direct-download" href="https://github.com/smmetrix/codegame/raw/beaa72dfd76a4e28cfa74bec0e10afb5a72dd9ef/zero_day_game.zip" download="zero_day_game.zip" target="_blank" rel="noopener">
           Скачать ZERO DAY (.zip) — открыть отдельно
         </a>
-        <a class="source-download direct-download" href="https://github.com/smmetrix/codegame/raw/f57c23e51fe3a361fc75044cb5fbe394e8e2eaa6/zero_day.py" download="zero_day.py" target="_blank" rel="noopener">
+        <a class="source-download direct-download" href="https://github.com/smmetrix/codegame/raw/beaa72dfd76a4e28cfa74bec0e10afb5a72dd9ef/zero_day.py" download="zero_day.py" target="_blank" rel="noopener">
           Скачать только zero_day.py
         </a>
       </div>
@@ -695,7 +695,7 @@
 
     <footer>
       <div>ZERO DAY // MELODIC 44.1 KHZ STEREO // NO EXTERNAL AUDIO ASSETS</div>
-      <div>SHA-256: 1783cb546b00f57f13f6fcda5cf361f29cea651662f9c55be870046478c9e9c9</div>
+      <div>SHA-256: 957a62d17231973fc7bf86d173f56f296fc187f34fdf2c171d9f764f1220bedc</div>
     </footer>
   </main>
 
@@ -1914,7 +1914,7 @@ GAME_CLOCK_RAY_STEP_DEGREES: Final[int] = 45
 GAME_CLOCK_CRESCENT_OFFSET: Final[tuple[int, int]] = (3, -2)
 
 # JSON-сохранения. Нулевой слот — save.json, далее save1.json, save2.json и т.д.
-SAVE_VERSION: Final[int] = 4
+SAVE_VERSION: Final[int] = 5
 SAVE_DEFAULT_FILENAME: Final[str] = "save.json"
 SAVE_SLOT_PREFIX: Final[str] = "save"
 SAVE_SLOT_SUFFIX: Final[str] = ".json"
@@ -2196,6 +2196,11 @@ GUIDE_SECTIONS: Final[tuple[dict[str, object], ...]] = (
             "В настройках музыка и эффекты имеют отдельные ползунки и переключатели; MusicPlayer поддерживает авто и ручной режим.",
             "Входящие вызовы приходят раз в 5–10 минут на рабочем столе: информатор даёт бонус, мошенник проверяет осторожность, а угрозу нужно погасить новым VPN.",
             "Горячий заказ появляется раз в 15–20 минут: за 2 минуты он даёт награду x3 и +10 REP, но просрочка штрафует репутацию.",
+            "Защищённая цель может запустить контр-взлом: завершите мини-игру раньше красной шкалы, чтобы получить +20% BTC.",
+            "Поражение в контр-взломе отнимает 0.01 BTC, повышает подозрение на 3% и блокирует цель на 2 минуты.",
+            "Раз в 20–30 минут начинается сетевой шторм. Его цвет, таймер и глобальный эффект отображаются в панели задач.",
+            "Зелёная утечка упрощает цели, красная полиция усиливает подозрение и атаки, жёлтый крипто-бум утраивает доход.",
+            "Синяя DDoS-волна удваивает HP серверов и сохраняет ботнеты; фиолетовая пятница снижает цены DarkNet вдвое.",
             "Финал зависит от решений в четырёх сюжетных главах; после титра текущую сессию можно продолжить.",
         ),
     },
@@ -3410,6 +3415,120 @@ HOT_DEAL_MESSAGE: Final[str] = (
     "🔥 ГОРЯЧИЙ ЗАКАЗ! Награда x3! Дедлайн: 2 МИНУТЫ! "
     "Бери или потеряешь!"
 )
+
+# Контр-взлом: вероятность зависит от итогового уровня цели.
+counter_hack_chance: Final[dict[int, float]] = {
+    1: 0.05,
+    2: 0.10,
+    3: 0.20,
+    4: 0.30,
+    5: 0.40,
+}
+COUNTER_HACK_SPEED_BY_LEVEL: Final[dict[int, float]] = {
+    1: 2.0,
+    2: 3.5,
+    3: 5.0,
+    4: 6.5,
+    5: 8.0,
+}
+COUNTER_HACK_TRIGGER_DELAY_MIN_SECONDS: Final[float] = 3.0
+COUNTER_HACK_TRIGGER_DELAY_MAX_SECONDS: Final[float] = 5.0
+COUNTER_HACK_ALERT_SECONDS: Final[float] = 2.0
+COUNTER_HACK_SUCCESS_NOTICE_SECONDS: Final[float] = 3.0
+COUNTER_HACK_FRAME_PERIOD_SECONDS: Final[float] = 2.0
+COUNTER_HACK_FRAME_FLASH_SECONDS: Final[float] = 0.2
+COUNTER_HACK_FAILURE_GLITCH_SECONDS: Final[float] = 1.0
+COUNTER_HACK_TARGET_COOLDOWN_SECONDS: Final[float] = 120.0
+COUNTER_HACK_BTC_PENALTY: Final[float] = 0.01
+COUNTER_HACK_SUSPICION_PENALTY: Final[float] = 3.0
+COUNTER_HACK_REWARD_MULTIPLIER: Final[float] = 1.20
+COUNTER_HACK_BAR_RECT: Final[tuple[int, int, int, int]] = (440, 82, 400, 20)
+COUNTER_HACK_BAR_BACKGROUND_HEX: Final[str] = "#330000"
+COUNTER_HACK_BAR_FILL_HEX: Final[str] = "#ff0000"
+COUNTER_HACK_LABEL_CENTER: Final[tuple[int, int]] = (640, 76)
+COUNTER_HACK_CRITICAL_CENTER: Final[tuple[int, int]] = (640, 112)
+COUNTER_HACK_ALERT_RECT: Final[tuple[int, int, int, int]] = (220, 132, 840, 82)
+COUNTER_HACK_FAILURE_PANEL_RECT: Final[tuple[int, int, int, int]] = (
+    265,
+    184,
+    750,
+    370,
+)
+COUNTER_HACK_FAILURE_BUTTON_RECT: Final[tuple[int, int, int, int]] = (
+    470,
+    474,
+    340,
+    54,
+)
+COUNTER_HACK_FAILURE_TITLE_CENTER: Final[tuple[int, int]] = (640, 316)
+COUNTER_HACK_FAILURE_DETAIL_CENTER: Final[tuple[int, int]] = (640, 382)
+COUNTER_HACK_GLITCH_SLICE_COUNT: Final[int] = 22
+COUNTER_HACK_GLITCH_MAX_OFFSET: Final[int] = 28
+COUNTER_HACK_CRITICAL_THRESHOLD: Final[float] = 80.0
+
+# Сетевые штормы: глобальные модификаторы с таймером реального времени.
+storm_types: Final[list[dict[str, object]]] = [
+    {
+        "name": "Утечка данных",
+        "color": "#00ff88",
+        "icon": "🟢",
+        "effect": "targets_easier",
+        "duration": 180,
+        "desc": "Все цели -2 сложность, награды x0.5",
+    },
+    {
+        "name": "Кибер-полиция",
+        "color": "#ff4444",
+        "icon": "🔴",
+        "effect": "suspension_x2",
+        "duration": 180,
+        "desc": "Подозрение растёт x2, атаки x2",
+    },
+    {
+        "name": "Крипто-бум",
+        "color": "#ffdd00",
+        "icon": "🟡",
+        "effect": "income_x3",
+        "duration": 120,
+        "desc": "Все доходы x3, Даркнет закрыт",
+    },
+    {
+        "name": "DDoS-волна",
+        "color": "#4488ff",
+        "icon": "🔵",
+        "effect": "servers_hard",
+        "duration": 150,
+        "desc": "Серверы x2 HP, ботнеты бесплатны",
+    },
+    {
+        "name": "Тёмная пятница",
+        "color": "#aa44ff",
+        "icon": "🟣",
+        "effect": "shop_discount",
+        "duration": 120,
+        "desc": "Даркнет -50%, только 2 минуты!",
+    },
+]
+STORM_INTERVAL_MIN_SECONDS: Final[int] = 1200
+STORM_INTERVAL_MAX_SECONDS: Final[int] = 1800
+STORM_ANNOUNCEMENT_SECONDS: Final[float] = 3.0
+STORM_END_NOTIFICATION_SECONDS: Final[float] = 3.0
+STORM_TARGET_DIFFICULTY_REDUCTION: Final[int] = 2
+STORM_ORDER_REWARD_MULTIPLIER: Final[float] = 0.50
+STORM_POLICE_SUSPICION_MULTIPLIER: Final[float] = 2.0
+STORM_POLICE_ATTACK_SPEED_MULTIPLIER: Final[float] = 2.0
+STORM_INCOME_MULTIPLIER: Final[float] = 3.0
+STORM_SERVER_HP_MULTIPLIER: Final[float] = 2.0
+STORM_SHOP_DISCOUNT_MULTIPLIER: Final[float] = 0.50
+STORM_FRAME_WIDTH: Final[int] = 5
+STORM_TASKBAR_STATUS_RECT: Final[tuple[int, int, int, int]] = (404, 4, 150, 28)
+STORM_ANNOUNCEMENT_TITLE_CENTER: Final[tuple[int, int]] = (640, 226)
+STORM_ANNOUNCEMENT_NAME_CENTER: Final[tuple[int, int]] = (640, 316)
+STORM_ANNOUNCEMENT_DESC_CENTER: Final[tuple[int, int]] = (640, 376)
+STORM_ANNOUNCEMENT_DURATION_CENTER: Final[tuple[int, int]] = (640, 426)
+STORM_GLOBE_CENTER: Final[tuple[int, int]] = (640, 158)
+STORM_GLOBE_RADIUS: Final[int] = 35
+STORM_DARKNET_CLOSED_MESSAGE: Final[str] = "Даркнет недоступен во время шторма"
 
 # Первый заказ Ph4ntom и программно нарисованные подсказки обучения.
 TUTORIAL_CUSTOMER: Final[str] = "Ph4ntom"
@@ -5548,7 +5667,11 @@ class ZeroDayApp:
         self.order_random = random.Random()
         self.attack_random = random.Random()
         self.event_random = random.Random()
+        self.counter_hack_random = random.Random()
+        self.storm_random = random.Random()
         self._reset_live_events()
+        self._reset_counter_hack_system(clear_cooldowns=True)
+        self._reset_network_storm()
         self._initialize_audio()
         self._refresh_save_slots()
         self._reset_messenger()
@@ -5845,8 +5968,19 @@ class ZeroDayApp:
             self.audio_manager.available = False
             self.audio_manager.error = f"{type(exc).__name__}: {exc}"
 
+    def _dynamic_attack_music_forced(self) -> bool:
+        counter_attack = bool(self.counter_hack.get("triggered")) and (
+            bool(self.counter_hack.get("active"))
+            or bool(self.counter_hack.get("failed"))
+        )
+        return (
+            bool(self.hot_deal.get("active"))
+            or bool(self.storm_state.get("active"))
+            or counter_attack
+        )
+
     def _desired_auto_music_track(self) -> str:
-        if self.hot_deal.get("active"):
+        if self._dynamic_attack_music_forced():
             return "track_attack"
         attack_warning = (
             self.hacker_attack_warning_sent
@@ -5868,7 +6002,7 @@ class ZeroDayApp:
         return "track_menu"
 
     def _selected_music_track(self) -> str:
-        if self.hot_deal.get("active"):
+        if self._dynamic_attack_music_forced():
             return "track_attack"
         return (
             self._desired_auto_music_track()
@@ -6027,6 +6161,7 @@ class ZeroDayApp:
             and not self.arrested
             and self.state == STATE_DESKTOP
             and self.active_minigame is None
+            and float(self.storm_state.get("announcement_timer", 0.0)) <= 0.0
             and not self.hacker_attack_warning_sent
             and self.hacker_attack_time <= 0.0
         )
@@ -6268,14 +6403,14 @@ class ZeroDayApp:
             "status": "pending",
         }
 
-    @staticmethod
-    def _hot_deal_message(order: dict[str, object]) -> str:
+    def _hot_deal_message(self, order: dict[str, object]) -> str:
+        reward = self._payable_order_reward(order)
         return (
             f"{HOT_DEAL_MESSAGE}\n"
             f"Цель: {order['target']}\n"
             f"Тип: {order['type']}\n"
             f"Задача: {order['description']}\n"
-            f"Награда x3: ₿ {float(order['reward']):.3f}"
+            f"Награда x3: ₿ {reward:.3f}"
         )
 
     def _start_hot_deal(self) -> bool:
@@ -6321,6 +6456,20 @@ class ZeroDayApp:
             or not isinstance(order, dict)
             or order.get("status") != "pending"
         ):
+            return
+        cooldown_context = {
+            "target": order.get("target", "горячая цель"),
+            "target_type": order.get("target_type", "Обычный ПК"),
+        }
+        if (
+            decision == "accepted"
+            and self._target_cooldown_remaining(cooldown_context, "") > 0.0
+        ):
+            self._push_notification(
+                self._target_cooldown_message(cooldown_context, ""),
+                COLOR_ERROR,
+                force=True,
+            )
             return
         if decision != "accepted":
             self._expire_hot_deal(
@@ -6436,15 +6585,18 @@ class ZeroDayApp:
         if not bool(self.hot_deal.get("active")) or not isinstance(order, dict):
             return "Горячий заказ уже закрыт."
         customer = str(order["customer"])
-        reward = float(order["reward"])
+        reward = self._payable_order_reward(order)
         order["status"] = "completed"
         self.completed_orders += 1
         self.messenger_orders_processed += 1
         self.skill_points += SKILL_POINTS_PER_COMPLETED_ORDER
         self.skill_points_earned += SKILL_POINTS_PER_COMPLETED_ORDER
         self._change_reputation(HOT_DEAL_COMPLETION_REPUTATION)
-        self._change_balance(reward, f"Горячий заказ #{int(order['id']):03d}")
-        message = f"🔥 ГОРЯЧИЙ ЗАКАЗ ВЫПОЛНЕН! +{reward:.3f} BTC!"
+        paid_reward = self._change_balance(
+            reward,
+            f"Горячий заказ #{int(order['id']):03d}",
+        )
+        message = f"🔥 ГОРЯЧИЙ ЗАКАЗ ВЫПОЛНЕН! +{paid_reward:.3f} BTC!"
         self._append_messenger_message(
             customer,
             "incoming",
@@ -6685,6 +6837,13 @@ class ZeroDayApp:
             .replace("⏱", "[TIME]")
             .replace("📞", "")
             .replace("❌", "")
+            .replace("⚠", "[!]")
+            .replace("🌐", "[NET]")
+            .replace("🟢", "[GREEN]")
+            .replace("🔴", "[RED]")
+            .replace("🟡", "[GOLD]")
+            .replace("🔵", "[BLUE]")
+            .replace("🟣", "[PURPLE]")
             .strip()
         )
 
@@ -7144,6 +7303,952 @@ class ZeroDayApp:
         )
 
     # ------------------------------------------------------------------
+    # Контр-взлом
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _blank_counter_hack() -> dict[str, object]:
+        return {
+            "active": False,
+            "enemy_progress": 0.0,
+            "enemy_speed": 0.0,
+            "triggered": False,
+            "trigger_delay": 0.0,
+            "alert_timer": 0.0,
+            "elapsed": 0.0,
+            "failed": False,
+            "failure_glitch_timer": 0.0,
+            "target_key": "",
+            "target_name": "",
+            "success_notice_timer": 0.0,
+            "success_notice": "",
+            "suspicion_added": 0.0,
+        }
+
+    def _reset_counter_hack_system(self, *, clear_cooldowns: bool = False) -> None:
+        self.counter_hack = self._blank_counter_hack()
+        if clear_cooldowns or not hasattr(self, "counter_hack_cooldowns"):
+            self.counter_hack_cooldowns: dict[str, float] = {}
+
+    def _clear_counter_hack_attempt(self, *, preserve_notice: bool = True) -> None:
+        notice_timer = (
+            float(self.counter_hack.get("success_notice_timer", 0.0))
+            if preserve_notice
+            else 0.0
+        )
+        notice = (
+            str(self.counter_hack.get("success_notice", ""))
+            if preserve_notice
+            else ""
+        )
+        self.counter_hack = self._blank_counter_hack()
+        self.counter_hack["success_notice_timer"] = notice_timer
+        self.counter_hack["success_notice"] = notice
+
+    @staticmethod
+    def _counter_hack_target_key(
+        context: dict[str, object] | None,
+        game_id: str,
+    ) -> str:
+        if context is not None and context.get("target") is not None:
+            target_type = str(context.get("target_type", "цель"))
+            return f"{target_type}:{context['target']}".casefold()
+        return f"training:{game_id}".casefold()
+
+    @staticmethod
+    def _counter_hack_target_name(
+        context: dict[str, object] | None,
+        game_id: str,
+    ) -> str:
+        if context is not None and context.get("target") is not None:
+            return str(context["target"])
+        return f"тренировочный модуль {game_id}"
+
+    def _target_cooldown_remaining(
+        self,
+        context: dict[str, object] | None,
+        game_id: str,
+    ) -> float:
+        key = self._counter_hack_target_key(context, game_id)
+        return max(0.0, float(self.counter_hack_cooldowns.get(key, 0.0)))
+
+    def _target_cooldown_message(
+        self,
+        context: dict[str, object] | None,
+        game_id: str,
+    ) -> str:
+        remaining = self._target_cooldown_remaining(context, game_id)
+        target_name = self._counter_hack_target_name(context, game_id)
+        return (
+            f"Цель {target_name} недоступна ещё "
+            f"{self._format_countdown(remaining)}"
+        )
+
+    def _update_counter_hack_cooldowns(self, delta_seconds: float) -> None:
+        if not self.has_active_session or self.arrested:
+            return
+        expired: list[str] = []
+        for target_key in tuple(self.counter_hack_cooldowns):
+            remaining = max(
+                0.0,
+                float(self.counter_hack_cooldowns[target_key]) - delta_seconds,
+            )
+            if remaining <= 0.0:
+                expired.append(target_key)
+            else:
+                self.counter_hack_cooldowns[target_key] = remaining
+        for target_key in expired:
+            del self.counter_hack_cooldowns[target_key]
+        if expired and self.browser_query:
+            self._update_browser_results()
+
+    def _configure_counter_hack(
+        self,
+        target_level: int,
+        context: dict[str, object] | None,
+        game_id: str,
+    ) -> bool:
+        self._clear_counter_hack_attempt(preserve_notice=False)
+        level = min(
+            MINIGAME_DIFFICULTY_MAX,
+            max(MINIGAME_DIFFICULTY_MIN, int(target_level)),
+        )
+        if self.counter_hack_random.random() >= counter_hack_chance[level]:
+            return False
+        self.counter_hack.update(
+            {
+                "active": True,
+                "enemy_progress": 0.0,
+                "enemy_speed": COUNTER_HACK_SPEED_BY_LEVEL[level],
+                "triggered": False,
+                "trigger_delay": self.counter_hack_random.uniform(
+                    COUNTER_HACK_TRIGGER_DELAY_MIN_SECONDS,
+                    COUNTER_HACK_TRIGGER_DELAY_MAX_SECONDS,
+                ),
+                "target_key": self._counter_hack_target_key(context, game_id),
+                "target_name": self._counter_hack_target_name(context, game_id),
+            }
+        )
+        return True
+
+    def _counter_hack_reward_multiplier(self) -> float:
+        context = self.active_hack_context
+        if context is not None and bool(context.get("counter_hack_overcome")):
+            return COUNTER_HACK_REWARD_MULTIPLIER
+        return 1.0
+
+    def _resolve_counter_hack_success(self) -> None:
+        if (
+            not bool(self.counter_hack.get("active"))
+            or not bool(self.counter_hack.get("triggered"))
+            or bool(self.counter_hack.get("failed"))
+        ):
+            return
+        context = self.active_hack_context or self.pending_minigame_order
+        if context is not None:
+            context["counter_hack_overcome"] = True
+        message = "Контр-взлом отражён! +бонус 20% BTC"
+        self.counter_hack["active"] = False
+        self.counter_hack["success_notice_timer"] = (
+            COUNTER_HACK_SUCCESS_NOTICE_SECONDS
+        )
+        self.counter_hack["success_notice"] = message
+        self._push_notification(
+            message,
+            COLOR_SUCCESS,
+            sound_id="success",
+            force=True,
+        )
+        self._sync_music_for_state()
+
+    def _trigger_counter_hack_failure(self) -> None:
+        if (
+            not bool(self.counter_hack.get("active"))
+            or not bool(self.counter_hack.get("triggered"))
+            or bool(self.counter_hack.get("failed"))
+        ):
+            return
+        target_key = str(self.counter_hack.get("target_key", ""))
+        if target_key:
+            self.counter_hack_cooldowns[target_key] = (
+                COUNTER_HACK_TARGET_COOLDOWN_SECONDS
+            )
+        self.counter_hack.update(
+            {
+                "active": False,
+                "enemy_progress": 100.0,
+                "failed": True,
+                "failure_glitch_timer": COUNTER_HACK_FAILURE_GLITCH_SECONDS,
+            }
+        )
+        if self.active_minigame is not None:
+            self.active_minigame.finish(False)
+        self._change_balance(
+            -COUNTER_HACK_BTC_PENALTY,
+            "Штраф за проигранный контр-взлом",
+        )
+        suspicion_added = self._change_suspicion(
+            COUNTER_HACK_SUSPICION_PENALTY,
+            "Цель завершила контр-взлом и раскрыла соединение",
+        )
+        if self.arrested:
+            return
+        self.counter_hack["suspicion_added"] = suspicion_added
+        self._play_sound("sfx_glitch")
+        self._sync_music_for_state()
+        self._save_game()
+
+    def _update_counter_hack(self, delta_seconds: float) -> None:
+        self._update_counter_hack_cooldowns(delta_seconds)
+        self.counter_hack["success_notice_timer"] = max(
+            0.0,
+            float(self.counter_hack.get("success_notice_timer", 0.0))
+            - delta_seconds,
+        )
+        if bool(self.counter_hack.get("failed")):
+            self.counter_hack["failure_glitch_timer"] = max(
+                0.0,
+                float(self.counter_hack.get("failure_glitch_timer", 0.0))
+                - delta_seconds,
+            )
+            return
+        if not bool(self.counter_hack.get("active")):
+            return
+        minigame = self.active_minigame
+        if minigame is None or isinstance(minigame, IntrusionDefense):
+            self._clear_counter_hack_attempt()
+            self._sync_music_for_state()
+            return
+        if minigame.finished:
+            if minigame.success and bool(self.counter_hack.get("triggered")):
+                self._resolve_counter_hack_success()
+            else:
+                self._clear_counter_hack_attempt()
+                self._sync_music_for_state()
+            return
+
+        if not bool(self.counter_hack.get("triggered")):
+            trigger_delay = float(self.counter_hack.get("trigger_delay", 0.0))
+            trigger_delay -= delta_seconds
+            self.counter_hack["trigger_delay"] = max(0.0, trigger_delay)
+            if trigger_delay > 0.0:
+                return
+            self.counter_hack["triggered"] = True
+            self.counter_hack["alert_timer"] = COUNTER_HACK_ALERT_SECONDS
+            self.counter_hack["elapsed"] = 0.0
+            self._play_sound("sfx_alarm")
+            self._sync_music_for_state()
+            return
+
+        self.counter_hack["elapsed"] = (
+            float(self.counter_hack.get("elapsed", 0.0)) + delta_seconds
+        )
+        self.counter_hack["alert_timer"] = max(
+            0.0,
+            float(self.counter_hack.get("alert_timer", 0.0)) - delta_seconds,
+        )
+        progress = min(
+            100.0,
+            float(self.counter_hack.get("enemy_progress", 0.0))
+            + float(self.counter_hack.get("enemy_speed", 0.0)) * delta_seconds,
+        )
+        self.counter_hack["enemy_progress"] = progress
+        if progress >= 100.0:
+            self._trigger_counter_hack_failure()
+
+    def _handle_counter_hack_failure_event(self, event: pygame.event.Event) -> bool:
+        if not bool(self.counter_hack.get("failed")):
+            return False
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_F11:
+            return False
+        if event.type != pygame.MOUSEBUTTONDOWN or event.button != 1:
+            return True
+        mouse = self._desktop_point(event.pos)
+        if (
+            float(self.counter_hack.get("failure_glitch_timer", 0.0)) <= 0.0
+            and pygame.Rect(COUNTER_HACK_FAILURE_BUTTON_RECT).collidepoint(mouse)
+        ):
+            self.counter_hack["failed"] = False
+            self._leave_minigame(report_result=True)
+            self._clear_counter_hack_attempt()
+        return True
+
+    def _draw_counter_hack_bar(self) -> None:
+        if not bool(self.counter_hack.get("triggered")):
+            return
+        if not (
+            bool(self.counter_hack.get("active"))
+            or bool(self.counter_hack.get("failed"))
+        ):
+            return
+        progress = min(
+            100.0,
+            max(0.0, float(self.counter_hack.get("enemy_progress", 0.0))),
+        )
+        bar = pygame.Rect(COUNTER_HACK_BAR_RECT)
+        self._draw_text(
+            "Контр-взлом противника",
+            COUNTER_HACK_LABEL_CENTER,
+            10,
+            COLOR_ERROR,
+            center=True,
+            bold=True,
+        )
+        pygame.draw.rect(
+            self.screen,
+            pygame.Color(COUNTER_HACK_BAR_BACKGROUND_HEX),
+            self._window_rect(bar),
+        )
+        fill_width = round(bar.width * progress / 100.0)
+        if fill_width > 0:
+            pulse = 0.82 + 0.18 * (math.sin(self.total_elapsed * 9.0) + 1.0) / 2.0
+            slices = min(50, fill_width)
+            for index in range(slices):
+                left = round(fill_width * index / slices)
+                right = round(fill_width * (index + 1) / slices)
+                gradient = index / max(1, slices - 1)
+                red = round((92 + 163 * gradient) * pulse)
+                pygame.draw.rect(
+                    self.screen,
+                    pygame.Color(red, 0, 0),
+                    self._rect((bar.x + left, bar.y, max(1, right - left), bar.height)),
+                )
+        pygame.draw.rect(
+            self.screen,
+            pygame.Color(COUNTER_HACK_BAR_FILL_HEX),
+            self._window_rect(bar),
+            width=self._s(2),
+        )
+        self._draw_text(
+            f"Контр-взлом: {progress:.0f}%",
+            bar.center,
+            10,
+            COLOR_TEXT,
+            center=True,
+            bold=True,
+        )
+        if progress > COUNTER_HACK_CRITICAL_THRESHOLD:
+            blink = int(self.total_elapsed * 8.0) % 2 == 0
+            if blink:
+                self._draw_text(
+                    "КРИТИЧЕСКИЙ УРОВЕНЬ!",
+                    COUNTER_HACK_CRITICAL_CENTER,
+                    12,
+                    COLOR_ERROR,
+                    center=True,
+                    bold=True,
+                )
+
+    def _draw_counter_hack_alert(self) -> None:
+        if float(self.counter_hack.get("alert_timer", 0.0)) <= 0.0:
+            return
+        if int(self.total_elapsed * 6.0) % 2 != 0:
+            return
+        panel = pygame.Rect(COUNTER_HACK_ALERT_RECT)
+        pygame.draw.rect(
+            self.screen,
+            COLOR_BACKGROUND,
+            self._window_rect(panel),
+            border_radius=self._s(10),
+        )
+        pygame.draw.rect(
+            self.screen,
+            COLOR_ERROR,
+            self._window_rect(panel),
+            width=self._s(3),
+            border_radius=self._s(10),
+        )
+        self._draw_text(
+            "[!] ЦЕЛЬ ОБНАРУЖИЛА ВТОРЖЕНИЕ! КОНТР-ВЗЛОМ НАЧАТ!",
+            panel.center,
+            18,
+            COLOR_ERROR,
+            center=True,
+            bold=True,
+        )
+
+    def _draw_counter_hack_success_notice(self) -> None:
+        if float(self.counter_hack.get("success_notice_timer", 0.0)) <= 0.0:
+            return
+        notice = str(self.counter_hack.get("success_notice", ""))
+        if not notice:
+            return
+        panel = pygame.Rect(390, 112, 500, 52)
+        pygame.draw.rect(
+            self.screen,
+            COLOR_BACKGROUND,
+            self._window_rect(panel),
+            border_radius=self._s(8),
+        )
+        pygame.draw.rect(
+            self.screen,
+            COLOR_SUCCESS,
+            self._window_rect(panel),
+            width=self._s(2),
+            border_radius=self._s(8),
+        )
+        self._draw_text(
+            notice,
+            panel.center,
+            14,
+            COLOR_SUCCESS,
+            center=True,
+            bold=True,
+        )
+
+    def _apply_counter_hack_glitch(self) -> None:
+        if float(self.counter_hack.get("failure_glitch_timer", 0.0)) <= 0.0:
+            return
+        snapshot = self.screen.copy()
+        screen_width, screen_height = self.screen.get_size()
+        slice_height = max(2, screen_height // COUNTER_HACK_GLITCH_SLICE_COUNT)
+        for index in range(COUNTER_HACK_GLITCH_SLICE_COUNT):
+            y = index * slice_height
+            height = min(slice_height, screen_height - y)
+            if height <= 0:
+                continue
+            offset = self.random.randint(
+                -COUNTER_HACK_GLITCH_MAX_OFFSET,
+                COUNTER_HACK_GLITCH_MAX_OFFSET,
+            )
+            source = pygame.Rect(0, y, screen_width, height)
+            self.screen.blit(snapshot, (offset, y), source)
+        noise = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+        for _index in range(36):
+            width = self.random.randint(8, 140)
+            height = self.random.randint(1, 5)
+            x = self.random.randint(0, max(0, screen_width - width))
+            y = self.random.randint(0, max(0, screen_height - height))
+            pygame.draw.rect(
+                noise,
+                (*COLOR_ERROR[:3], self.random.randint(35, 120)),
+                pygame.Rect(x, y, width, height),
+            )
+        self.screen.blit(noise, (0, 0))
+
+    def _draw_counter_hack_failure(self, mouse: tuple[float, float]) -> None:
+        if not bool(self.counter_hack.get("failed")):
+            return
+        self._apply_counter_hack_glitch()
+        dim = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+        dim.fill((0, 0, 0, 190))
+        self.screen.blit(dim, (0, 0))
+        panel = pygame.Rect(COUNTER_HACK_FAILURE_PANEL_RECT)
+        pygame.draw.rect(
+            self.screen,
+            COLOR_BACKGROUND,
+            self._window_rect(panel),
+            border_radius=self._s(14),
+        )
+        pygame.draw.rect(
+            self.screen,
+            COLOR_ERROR,
+            self._window_rect(panel),
+            width=self._s(4),
+            border_radius=self._s(14),
+        )
+        self._draw_text(
+            "СОЕДИНЕНИЕ РАЗОРВАНО.",
+            (COUNTER_HACK_FAILURE_TITLE_CENTER[0], 276),
+            34,
+            COLOR_ERROR,
+            center=True,
+            bold=True,
+        )
+        self._draw_text(
+            "ЦЕЛЬ ЗАБЛОКИРОВАЛА ВАС.",
+            COUNTER_HACK_FAILURE_TITLE_CENTER,
+            25,
+            COLOR_ERROR,
+            center=True,
+            bold=True,
+        )
+        suspicion_added = float(self.counter_hack.get("suspicion_added", 0.0))
+        self._draw_text(
+            (
+                f"Штраф -{COUNTER_HACK_BTC_PENALTY:.2f} BTC  //  "
+                f"Подозрение +{suspicion_added:.0f}%  //  Кулдаун цели 02:00"
+            ),
+            COUNTER_HACK_FAILURE_DETAIL_CENTER,
+            14,
+            COLOR_TEXT,
+            center=True,
+        )
+        if float(self.counter_hack.get("failure_glitch_timer", 0.0)) > 0.0:
+            self._draw_text(
+                "ВОССТАНОВЛЕНИЕ ИНТЕРФЕЙСА...",
+                (640, 474),
+                13,
+                COLOR_ERROR,
+                center=True,
+                bold=True,
+            )
+            return
+        button = pygame.Rect(COUNTER_HACK_FAILURE_BUTTON_RECT)
+        hovered = button.collidepoint(mouse)
+        pygame.draw.rect(
+            self.screen,
+            COLOR_HOT_ACCENT if hovered else COLOR_ERROR,
+            self._window_rect(button),
+            border_radius=self._s(9),
+        )
+        self._draw_text(
+            "Вернуться на рабочий стол",
+            button.center,
+            15,
+            COLOR_TEXT,
+            center=True,
+            bold=True,
+        )
+
+    def _draw_counter_hack_overlay(self) -> None:
+        if self.state not in MINIGAME_STATES:
+            self._draw_counter_hack_success_notice()
+            return
+        elapsed = float(self.counter_hack.get("elapsed", 0.0))
+        if (
+            bool(self.counter_hack.get("triggered"))
+            and not bool(self.counter_hack.get("failed"))
+            and elapsed % COUNTER_HACK_FRAME_PERIOD_SECONDS
+            < COUNTER_HACK_FRAME_FLASH_SECONDS
+        ):
+            pygame.draw.rect(
+                self.screen,
+                COLOR_ERROR,
+                self._rect((2, 2, DESIGN_WIDTH - 4, DESIGN_HEIGHT - 4)),
+                width=self._s(5),
+            )
+        self._draw_counter_hack_bar()
+        self._draw_counter_hack_alert()
+        self._draw_counter_hack_success_notice()
+        self._draw_counter_hack_failure(self._desktop_point(pygame.mouse.get_pos()))
+
+    # ------------------------------------------------------------------
+    # Сетевые штормы
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _blank_storm_state() -> dict[str, object]:
+        return {
+            "active": False,
+            "type": None,
+            "timer": 0.0,
+            "announcement_timer": 0.0,
+            "elapsed": 0.0,
+            "end_notice_timer": 0.0,
+            "end_notice": "",
+        }
+
+    def _reset_network_storm(self) -> None:
+        if hasattr(self, "storm_state") and self._storm_effect_active("servers_hard"):
+            self._remove_server_storm_hp_from_active_game()
+        self.storm_state = self._blank_storm_state()
+        self.next_storm_time = float(
+            self.storm_random.randint(
+                STORM_INTERVAL_MIN_SECONDS,
+                STORM_INTERVAL_MAX_SECONDS,
+            )
+        )
+
+    def _schedule_next_storm(self) -> None:
+        self.next_storm_time = float(
+            self.storm_random.randint(
+                STORM_INTERVAL_MIN_SECONDS,
+                STORM_INTERVAL_MAX_SECONDS,
+            )
+        )
+
+    def _active_storm_type(self) -> dict[str, object] | None:
+        storm = self.storm_state.get("type")
+        return storm if isinstance(storm, dict) else None
+
+    def _storm_effect_active(self, effect: str) -> bool:
+        storm = self._active_storm_type()
+        return (
+            bool(self.storm_state.get("active"))
+            and storm is not None
+            and storm.get("effect") == effect
+        )
+
+    def _storm_color(self) -> pygame.Color:
+        storm = self._active_storm_type()
+        if storm is None:
+            return COLOR_MUTED
+        try:
+            return pygame.Color(str(storm["color"]))
+        except (KeyError, ValueError):
+            return COLOR_MUTED
+
+    def _storm_can_start(self) -> bool:
+        gameplay_states = {
+            STATE_DESKTOP,
+            STATE_HACK_PREP,
+            STATE_POST_HACK,
+            *MINIGAME_STATES,
+        }
+        return (
+            self.has_active_session
+            and not self.arrested
+            and self.state in gameplay_states
+            and not bool(self.storm_state.get("active"))
+            and not bool(self.call_state.get("active"))
+            and not bool(self.counter_hack.get("failed"))
+        )
+
+    def _start_network_storm(
+        self,
+        storm: dict[str, object] | None = None,
+    ) -> bool:
+        if not self._storm_can_start():
+            return False
+        selected = storm or self.storm_random.choice(storm_types)
+        effect = str(selected.get("effect", ""))
+        canonical = next(
+            (item for item in storm_types if item["effect"] == effect),
+            None,
+        )
+        if canonical is None:
+            return False
+        duration = float(canonical["duration"])
+        self.storm_state = {
+            "active": True,
+            "type": dict(canonical),
+            "timer": duration,
+            "announcement_timer": STORM_ANNOUNCEMENT_SECONDS,
+            "elapsed": 0.0,
+        }
+        if effect == "income_x3":
+            darknet_windows = [
+                window
+                for window in self.desktop_windows
+                if window.app_id == DARKNET_APP_ID
+            ]
+            for window in darknet_windows:
+                self._close_desktop_window(window)
+        elif effect == "servers_hard":
+            self._apply_server_storm_hp_to_active_game()
+        self._play_sound("sfx_alarm")
+        self._update_browser_results()
+        self._sync_music_for_state()
+        self._save_game()
+        return True
+
+    def _end_network_storm(self) -> None:
+        storm = self._active_storm_type()
+        if not bool(self.storm_state.get("active")) or storm is None:
+            return
+        name = str(storm["name"])
+        if storm.get("effect") == "servers_hard":
+            self._remove_server_storm_hp_from_active_game()
+        self.storm_state = self._blank_storm_state()
+        self.storm_state["end_notice_timer"] = STORM_END_NOTIFICATION_SECONDS
+        self.storm_state["end_notice"] = f"[NET] Шторм '{name}' закончился."
+        self._schedule_next_storm()
+        self._update_browser_results()
+        self._sync_music_for_state()
+        self._push_notification(
+            f"🌐 Шторм '{name}' закончился.",
+            COLOR_MUTED,
+            sound_id="notification",
+            force=True,
+            duration=STORM_END_NOTIFICATION_SECONDS,
+        )
+        self._save_game()
+
+    def _update_network_storm(self, delta_seconds: float) -> None:
+        if not self.has_active_session or self.arrested:
+            return
+        self.storm_state["end_notice_timer"] = max(
+            0.0,
+            float(self.storm_state.get("end_notice_timer", 0.0)) - delta_seconds,
+        )
+        if bool(self.storm_state.get("active")):
+            self.storm_state["timer"] = max(
+                0.0,
+                float(self.storm_state.get("timer", 0.0)) - delta_seconds,
+            )
+            self.storm_state["announcement_timer"] = max(
+                0.0,
+                float(self.storm_state.get("announcement_timer", 0.0))
+                - delta_seconds,
+            )
+            self.storm_state["elapsed"] = (
+                float(self.storm_state.get("elapsed", 0.0)) + delta_seconds
+            )
+            if float(self.storm_state["timer"]) <= 0.0:
+                self._end_network_storm()
+            return
+        self.next_storm_time -= delta_seconds
+        if self.next_storm_time <= 0.0 and self._storm_can_start():
+            self._start_network_storm()
+
+    def _storm_order_reward_multiplier(self) -> float:
+        return (
+            STORM_ORDER_REWARD_MULTIPLIER
+            if self._storm_effect_active("targets_easier")
+            else 1.0
+        )
+
+    def _payable_order_reward(self, order: dict[str, object]) -> float:
+        return round(
+            float(order.get("reward", 0.0)) * self._storm_order_reward_multiplier(),
+            6,
+        )
+
+    def _storm_income_multiplier(self) -> float:
+        return (
+            STORM_INCOME_MULTIPLIER
+            if self._storm_effect_active("income_x3")
+            else 1.0
+        )
+
+    def _darknet_closed_by_storm(self) -> bool:
+        return self._storm_effect_active("income_x3")
+
+    def _storm_botnet_is_free(self) -> bool:
+        return self._storm_effect_active("servers_hard")
+
+    @staticmethod
+    def _is_server_target_context(context: dict[str, object] | None) -> bool:
+        if context is None:
+            return False
+        target_type = str(context.get("target_type", ""))
+        parameters = TARGET_TYPES.get(target_type)
+        return parameters is not None and parameters.get("category") == "server"
+
+    def _active_ddos_is_server_target(self) -> bool:
+        if not isinstance(self.active_minigame, DDoSClicker):
+            return False
+        context = self.active_hack_context or self.pending_minigame_order
+        return self._is_server_target_context(context) or context is None
+
+    def _apply_server_storm_hp_to_active_game(self) -> None:
+        if not self._active_ddos_is_server_target():
+            return
+        minigame = self.active_minigame
+        if not isinstance(minigame, DDoSClicker) or bool(
+            getattr(minigame, "storm_hp_applied", False)
+        ):
+            return
+        original_max = minigame.max_hp
+        original_hp = minigame.hp
+        minigame.storm_original_max_hp = original_max
+        minigame.storm_hp_applied = True
+        minigame.max_hp = math.ceil(original_max * STORM_SERVER_HP_MULTIPLIER)
+        minigame.hp = (
+            minigame.max_hp
+            if original_hp >= original_max
+            else math.ceil(original_hp * STORM_SERVER_HP_MULTIPLIER)
+        )
+
+    def _remove_server_storm_hp_from_active_game(self) -> None:
+        minigame = self.active_minigame
+        if not isinstance(minigame, DDoSClicker) or not bool(
+            getattr(minigame, "storm_hp_applied", False)
+        ):
+            return
+        original_max = max(
+            1,
+            int(getattr(minigame, "storm_original_max_hp", minigame.max_hp)),
+        )
+        ratio = minigame.hp / max(1, minigame.max_hp)
+        minigame.max_hp = original_max
+        minigame.hp = (
+            0
+            if minigame.hp <= 0
+            else min(original_max, max(1, math.ceil(original_max * ratio)))
+        )
+        minigame.storm_hp_applied = False
+
+    def _draw_storm_globe(self) -> None:
+        center = self._point(STORM_GLOBE_CENTER)
+        radius = self._s(STORM_GLOBE_RADIUS)
+        color = self._storm_color()
+        pygame.draw.circle(self.screen, color, center, radius, self._s(3))
+        pygame.draw.ellipse(
+            self.screen,
+            color,
+            pygame.Rect(
+                center[0] - radius // 2,
+                center[1] - radius,
+                radius,
+                radius * 2,
+            ),
+            self._s(2),
+        )
+        pygame.draw.line(
+            self.screen,
+            color,
+            (center[0] - radius, center[1]),
+            (center[0] + radius, center[1]),
+            self._s(2),
+        )
+        pygame.draw.arc(
+            self.screen,
+            color,
+            pygame.Rect(
+                center[0] - radius,
+                center[1] - radius // 2,
+                radius * 2,
+                radius,
+            ),
+            0.0,
+            math.tau,
+            self._s(2),
+        )
+
+    def _draw_storm_frame(self) -> None:
+        if not bool(self.storm_state.get("active")) or self.state != STATE_DESKTOP:
+            return
+        color = self._storm_color()
+        pulse_on = int(float(self.storm_state.get("elapsed", 0.0)) * 2.0) % 2 == 0
+        frame_color = color if pulse_on else color.lerp(COLOR_BACKGROUND, 0.42)
+        pygame.draw.rect(
+            self.screen,
+            frame_color,
+            self._rect(
+                (
+                    2,
+                    DESKTOP_TASKBAR_HEIGHT,
+                    DESIGN_WIDTH - 4,
+                    DESIGN_HEIGHT - DESKTOP_TASKBAR_HEIGHT - 2,
+                )
+            ),
+            width=self._s(STORM_FRAME_WIDTH),
+        )
+
+    def _draw_storm_announcement(self) -> None:
+        if (
+            not bool(self.storm_state.get("active"))
+            or float(self.storm_state.get("announcement_timer", 0.0)) <= 0.0
+        ):
+            return
+        storm = self._active_storm_type()
+        if storm is None:
+            return
+        dim = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+        dim.fill((0, 0, 0, 220))
+        self.screen.blit(dim, (0, 0))
+        self._draw_storm_globe()
+        self._draw_text(
+            "СЕТЕВОЙ ШТОРМ",
+            STORM_ANNOUNCEMENT_TITLE_CENTER,
+            38,
+            COLOR_TEXT,
+            center=True,
+            bold=True,
+        )
+        color = self._storm_color()
+        pygame.draw.circle(
+            self.screen,
+            color,
+            self._point((470, STORM_ANNOUNCEMENT_NAME_CENTER[1] + 13)),
+            self._s(12),
+        )
+        self._draw_text(
+            str(storm["name"]),
+            STORM_ANNOUNCEMENT_NAME_CENTER,
+            28,
+            color,
+            center=True,
+            bold=True,
+        )
+        self._draw_text(
+            str(storm["desc"]),
+            STORM_ANNOUNCEMENT_DESC_CENTER,
+            18,
+            COLOR_TEXT,
+            center=True,
+        )
+        self._draw_text(
+            f"Длительность: {self._format_countdown(float(storm['duration']))}",
+            STORM_ANNOUNCEMENT_DURATION_CENTER,
+            17,
+            COLOR_MUTED,
+            center=True,
+            bold=True,
+        )
+
+    def _draw_storm_taskbar_status(self) -> None:
+        if not bool(self.storm_state.get("active")):
+            return
+        storm = self._active_storm_type()
+        if storm is None:
+            return
+        rect = pygame.Rect(STORM_TASKBAR_STATUS_RECT)
+        pygame.draw.rect(
+            self.screen,
+            COLOR_BACKGROUND,
+            self._window_rect(rect),
+            border_radius=self._s(6),
+        )
+        color = self._storm_color()
+        pygame.draw.rect(
+            self.screen,
+            color,
+            self._window_rect(rect),
+            width=self._s(1),
+            border_radius=self._s(6),
+        )
+        blink_on = int(float(self.storm_state.get("elapsed", 0.0)) * 2.0) % 2 == 0
+        pygame.draw.circle(
+            self.screen,
+            color if blink_on else COLOR_BACKGROUND,
+            self._point((rect.x + 13, rect.centery)),
+            self._s(6),
+        )
+        label = {
+            "targets_easier": "DATA LEAK",
+            "suspension_x2": "POLICE SCAN",
+            "income_x3": "BTC BOOM",
+            "servers_hard": "DDoS WAVE",
+            "shop_discount": "DARK SALE",
+        }.get(str(storm.get("effect", "")), str(storm["name"]).upper())
+        label = self._fit_text(
+            f"{label} {self._format_countdown(float(self.storm_state.get('timer', 0.0)))}",
+            self._font(8, True),
+            self._s(rect.width - 26),
+        )
+        self._draw_text(
+            label,
+            (rect.x + 24, rect.y + 9),
+            8,
+            color if blink_on else COLOR_MUTED,
+            bold=True,
+        )
+
+    def _draw_storm_end_notice(self) -> None:
+        if float(self.storm_state.get("end_notice_timer", 0.0)) <= 0.0:
+            return
+        panel = pygame.Rect(390, 92, 500, 54)
+        pygame.draw.rect(
+            self.screen,
+            COLOR_BACKGROUND,
+            self._window_rect(panel),
+            border_radius=self._s(8),
+        )
+        pygame.draw.rect(
+            self.screen,
+            COLOR_MUTED,
+            self._window_rect(panel),
+            width=self._s(2),
+            border_radius=self._s(8),
+        )
+        self._draw_text(
+            str(self.storm_state.get("end_notice", "")),
+            panel.center,
+            14,
+            COLOR_MUTED,
+            center=True,
+            bold=True,
+        )
+
+    def _draw_network_storm_overlay(self) -> None:
+        self._draw_storm_frame()
+        self._draw_storm_end_notice()
+        self._draw_storm_announcement()
+
+    # ------------------------------------------------------------------
     # Масштабирование и текст
     # ------------------------------------------------------------------
 
@@ -7297,6 +8402,10 @@ class ZeroDayApp:
             event
         ):
             return
+        if bool(self.counter_hack.get("failed")) and (
+            self._handle_counter_hack_failure_event(event)
+        ):
+            return
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             self._play_sound("click")
@@ -7394,6 +8503,8 @@ class ZeroDayApp:
 
     def _handle_minigame_event(self, event: pygame.event.Event) -> None:
         if self.active_minigame is None:
+            return
+        if self._handle_counter_hack_failure_event(event):
             return
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             point = self._desktop_point(event.pos)
@@ -7837,6 +8948,10 @@ class ZeroDayApp:
                     self.informant_pending_difficulty_bonus
                 ),
             },
+            "counter_hack": self.counter_hack,
+            "counter_hack_cooldowns": self.counter_hack_cooldowns,
+            "storm_state": self.storm_state,
+            "next_storm_time": self.next_storm_time,
             "attempt_number": self.attempt_number,
             "total_arrests": self.total_arrests,
             "arrested": self.arrested,
@@ -8072,6 +9187,62 @@ class ZeroDayApp:
         else:
             self.audio_manager.set_music_duck(1.0)
 
+    def _load_counter_hack_state(self, payload: dict[str, object]) -> None:
+        self._reset_counter_hack_system(clear_cooldowns=True)
+        cooldowns_value = payload.get("counter_hack_cooldowns")
+        if isinstance(cooldowns_value, dict):
+            self.counter_hack_cooldowns = {
+                str(target_key)[:160]: min(
+                    COUNTER_HACK_TARGET_COOLDOWN_SECONDS,
+                    max(0.0, float(remaining)),
+                )
+                for target_key, remaining in cooldowns_value.items()
+                if isinstance(remaining, (int, float)) and float(remaining) > 0.0
+            }
+
+    def _load_network_storm_state(self, payload: dict[str, object]) -> None:
+        self.next_storm_time = max(
+            0.0,
+            float(payload.get("next_storm_time", self.next_storm_time)),
+        )
+        loaded_state = payload.get("storm_state")
+        if not isinstance(loaded_state, dict) or not bool(loaded_state.get("active")):
+            self.storm_state = self._blank_storm_state()
+            return
+        loaded_type = loaded_state.get("type")
+        effect = (
+            str(loaded_type.get("effect", ""))
+            if isinstance(loaded_type, dict)
+            else ""
+        )
+        canonical = next(
+            (item for item in storm_types if item["effect"] == effect),
+            None,
+        )
+        if canonical is None:
+            self.storm_state = self._blank_storm_state()
+            return
+        timer = min(
+            float(canonical["duration"]),
+            max(0.0, float(loaded_state.get("timer", 0.0))),
+        )
+        if timer <= 0.0:
+            self.storm_state = self._blank_storm_state()
+            return
+        self.storm_state = {
+            "active": True,
+            "type": dict(canonical),
+            "timer": timer,
+            "announcement_timer": min(
+                STORM_ANNOUNCEMENT_SECONDS,
+                max(
+                    0.0,
+                    float(loaded_state.get("announcement_timer", 0.0)),
+                ),
+            ),
+            "elapsed": max(0.0, float(loaded_state.get("elapsed", 0.0))),
+        }
+
     def _load_game(self, path: Path, *, notify: bool = True) -> bool:
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
@@ -8299,8 +9470,12 @@ class ZeroDayApp:
             self.arrest_reason = str(payload.get("arrest_reason", ""))
             self.has_active_session = True
             self._load_live_event_state(payload)
+            self._load_counter_hack_state(payload)
+            self._load_network_storm_state(payload)
             if self.arrested:
                 self._reset_live_events()
+                self._reset_counter_hack_system(clear_cooldowns=True)
+                self._reset_network_storm()
             self.active_minigame = None
             self.pending_minigame_order = None
             self.pending_hack_launch = None
@@ -8368,10 +9543,20 @@ class ZeroDayApp:
             )
         return True
 
-    def _change_balance(self, amount: float, transaction_type: str) -> None:
+    def _change_balance(
+        self,
+        amount: float,
+        transaction_type: str,
+        *,
+        apply_income_modifiers: bool = True,
+    ) -> float:
         """Меняет баланс и добавляет запись в журнал CryptoWallet."""
-        self.btc_balance += amount
-        if amount > 0.0:
+        applied_amount = float(amount)
+        if applied_amount > 0.0 and apply_income_modifiers:
+            applied_amount *= self._storm_income_multiplier()
+            applied_amount *= self._counter_hack_reward_multiplier()
+        self.btc_balance += applied_amount
+        if applied_amount > 0.0:
             self._play_sound("sfx_coin")
         if abs(self.btc_balance) < 1e-12:
             self.btc_balance = 0.0
@@ -8379,11 +9564,12 @@ class ZeroDayApp:
             {
                 "timestamp": time.time(),
                 "type": transaction_type,
-                "amount": amount,
+                "amount": applied_amount,
             }
         )
         if len(self.transactions) > TRANSACTION_HISTORY_LIMIT:
             del self.transactions[: len(self.transactions) - TRANSACTION_HISTORY_LIMIT]
+        return applied_amount
 
     def _change_reputation(self, amount: int) -> int:
         """Изменяет репутацию, всегда сохраняя диапазон -100..+100."""
@@ -8397,9 +9583,12 @@ class ZeroDayApp:
     def _change_suspicion(self, amount: float, reason: str = "") -> float:
         """Изменяет подозрение в диапазоне 0–100 и запускает арест на максимуме."""
         previous = self.suspicion
+        applied_amount = float(amount)
+        if applied_amount > 0.0 and self._storm_effect_active("suspension_x2"):
+            applied_amount *= STORM_POLICE_SUSPICION_MULTIPLIER
         self.suspicion = min(
             SUSPICION_MAX,
-            max(SUSPICION_MIN, previous + float(amount)),
+            max(SUSPICION_MIN, previous + applied_amount),
         )
         if self.suspicion >= SUSPICION_MAX and not self.arrested:
             self._trigger_arrest(reason or "Цифровой след достиг критического уровня")
@@ -8412,6 +9601,8 @@ class ZeroDayApp:
         self.total_arrests += 1
         self.arrest_reason = reason
         self._reset_live_events()
+        self._reset_counter_hack_system(clear_cooldowns=True)
+        self._reset_network_storm()
         self._play_sound("alarm")
         self.browser_input_focused = False
         self.dragged_window = None
@@ -8444,6 +9635,8 @@ class ZeroDayApp:
             reduction += SKILL_HACK_DIFFICULTY_REDUCTION
         if self._is_game_night():
             reduction += GAME_NIGHT_DIFFICULTY_REDUCTION
+        if self._storm_effect_active("targets_easier"):
+            reduction += STORM_TARGET_DIFFICULTY_REDUCTION
         return min(
             MINIGAME_DIFFICULTY_MAX,
             max(MINIGAME_DIFFICULTY_MIN, int(base_difficulty) - reduction),
@@ -8517,9 +9710,14 @@ class ZeroDayApp:
         price = float(product["price"])
         if self.darknet_discount_timer > 0.0:
             price *= 1.0 - CALL_INFORMANT_DISCOUNT_RATE
+        if self._storm_effect_active("shop_discount"):
+            price *= STORM_SHOP_DISCOUNT_MULTIPLIER
         return round(price, 6)
 
     def _purchase_darknet_product(self, product: dict[str, object]) -> bool:
+        if self._darknet_closed_by_storm():
+            self._push_notification(STORM_DARKNET_CLOSED_MESSAGE, COLOR_MUTED, force=True)
+            return False
         price = self._darknet_effective_price(product)
         vpn_charge_value = product.get("vpn_charges")
         threat_active = bool(self.call_state.get("threat_active"))
@@ -8575,7 +9773,11 @@ class ZeroDayApp:
             return False
         amount = self.miner_pending_income
         self.miner_pending_income = 0.0
-        self._change_balance(amount, "Доход майнеров")
+        self._change_balance(
+            amount,
+            "Доход майнеров",
+            apply_income_modifiers=False,
+        )
         self._push_notification(
             f"Доход майнеров зачислен: +₿ {amount:.6f}",
             COLOR_SUCCESS,
@@ -8724,16 +9926,16 @@ class ZeroDayApp:
             "status": "pending",
         }
 
-    @staticmethod
-    def _order_message(order: dict[str, object]) -> str:
+    def _order_message(self, order: dict[str, object]) -> str:
         if bool(order.get("is_hot_deal")):
-            return ZeroDayApp._hot_deal_message(order)
+            return self._hot_deal_message(order)
+        reward = self._payable_order_reward(order)
         if bool(order.get("is_tutorial")):
             return (
                 "ОБУЧЕНИЕ // ПЕРВЫЙ КОНТРАКТ\n"
                 f"Цель: {order['target']}\n"
                 f"Задача: {order['description']}\n"
-                f"Награда: ₿ {float(order['reward']):.3f} + 1 SP"
+                f"Награда: ₿ {reward:.3f} + 1 SP"
             )
         if bool(order["is_story"]):
             return (
@@ -8742,14 +9944,14 @@ class ZeroDayApp:
                 f"Цель: {order['target']}\n"
                 f"{order['description']}\n"
                 f"ВЫБОР: {order['accept_label']} / {order['reject_label']}\n"
-                f"Награда: ₿ {float(order['reward']):.3f}"
+                f"Награда: ₿ {reward:.3f}"
             )
         return (
             f"ЗАКАЗ #{int(order['id']):03d}\n"
             f"Цель: {order['target']}\n"
             f"Тип: {order['type']}\n"
             f"Задача: {order['description']}\n"
-            f"Награда: ₿ {float(order['reward']):.3f}"
+            f"Награда: ₿ {reward:.3f}"
         )
 
     def _append_messenger_message(
@@ -8829,13 +10031,14 @@ class ZeroDayApp:
         *,
         sound_id: str | None = "notification",
         force: bool = False,
+        duration: float = DESKTOP_NOTIFICATION_DURATION_SECONDS,
     ) -> None:
         if bool(self.hot_deal.get("active")) and not force:
             return
         self.desktop_notifications.append(
             {
                 "message": message,
-                "remaining": DESKTOP_NOTIFICATION_DURATION_SECONDS,
+                "remaining": max(0.0, float(duration)),
                 "color": color,
             }
         )
@@ -8983,6 +10186,8 @@ class ZeroDayApp:
             and not self.arrested
         ):
             self._reset_live_events()
+            self._reset_counter_hack_system(clear_cooldowns=True)
+            self._reset_network_storm()
             self._change_state(STATE_STORY_FINALE)
             return True
         return False
@@ -9077,7 +10282,12 @@ class ZeroDayApp:
             or bool(self.hot_deal.get("active"))
         ):
             return
-        self.hacker_attack_timer -= delta_seconds
+        attack_speed = (
+            STORM_POLICE_ATTACK_SPEED_MULTIPLIER
+            if self._storm_effect_active("suspension_x2")
+            else 1.0
+        )
+        self.hacker_attack_timer -= delta_seconds * attack_speed
         if (
             self.hacker_attack_timer <= HACKER_ATTACK_WARNING_SECONDS
             and not self.hacker_attack_warning_sent
@@ -9165,6 +10375,20 @@ class ZeroDayApp:
     def _process_order(self, customer: str, decision: str) -> None:
         order = self.messenger_active_orders.get(customer)
         if order is None or order.get("status") != "pending":
+            return
+        cooldown_context = {
+            "target": order.get("target", customer),
+            "target_type": order.get("target_type", "Обычный ПК"),
+        }
+        if (
+            decision == "accepted"
+            and self._target_cooldown_remaining(cooldown_context, "") > 0.0
+        ):
+            self._push_notification(
+                self._target_cooldown_message(cooldown_context, ""),
+                COLOR_ERROR,
+                force=True,
+            )
             return
         is_story = bool(order.get("is_story"))
         is_tutorial = bool(order.get("is_tutorial"))
@@ -9320,6 +10544,7 @@ class ZeroDayApp:
                 for miner in self.miner_targets
             )
             miner_income = total_miner_rate * delta_seconds / 60.0
+            miner_income *= self._storm_income_multiplier()
             self.miner_pending_income += miner_income
             self.miner_earned_total += miner_income
 
@@ -9368,6 +10593,8 @@ class ZeroDayApp:
         self.selected_hack_tools = set()
         self.post_hack_mode = "actions"
         self._reset_live_events()
+        self._reset_counter_hack_system(clear_cooldowns=True)
+        self._reset_network_storm()
         self._reset_messenger()
         self._schedule_next_hacker_attack()
 
@@ -9658,6 +10885,13 @@ class ZeroDayApp:
         for key in ("customer", "reward", "order_id", "order_pending", "order"):
             if key in target:
                 context[key] = target[key]
+        if self._target_cooldown_remaining(context, game_id) > 0.0:
+            self._push_notification(
+                self._target_cooldown_message(context, game_id),
+                COLOR_ERROR,
+                force=True,
+            )
+            return
         order_reference = context.get("order")
         if isinstance(order_reference, dict) and bool(order_reference.get("is_story")):
             self._record_story_choice(order_reference, "accepted")
@@ -9821,6 +11055,13 @@ class ZeroDayApp:
         window: DesktopWindow,
         mouse: tuple[float, float],
     ) -> bool:
+        if self._darknet_closed_by_storm():
+            self._push_notification(
+                STORM_DARKNET_CLOSED_MESSAGE,
+                COLOR_MUTED,
+                force=True,
+            )
+            return True
         for index, (category_id, _label) in enumerate(DARKNET_CATEGORIES):
             if self._darknet_category_rect(window, index).collidepoint(mouse):
                 self.darknet_category = category_id
@@ -9891,6 +11132,13 @@ class ZeroDayApp:
         self.desktop_windows.append(window)
 
     def _open_desktop_window(self, app_id: str) -> None:
+        if app_id == DARKNET_APP_ID and self._darknet_closed_by_storm():
+            self._push_notification(
+                STORM_DARKNET_CLOSED_MESSAGE,
+                COLOR_MUTED,
+                force=True,
+            )
+            return
         if (
             self.tutorial_active
             and app_id == MESSENGER_APP_ID
@@ -10153,6 +11401,13 @@ class ZeroDayApp:
         hack_context: dict[str, object] | None = None,
         difficulty_override: int | None = None,
     ) -> None:
+        if self._target_cooldown_remaining(hack_context, game_id) > 0.0:
+            self._push_notification(
+                self._target_cooldown_message(hack_context, game_id),
+                COLOR_ERROR,
+                force=True,
+            )
+            return
         game_difficulty = min(
             MINIGAME_DIFFICULTY_MAX,
             max(
@@ -10215,7 +11470,9 @@ class ZeroDayApp:
         selected_tools = self.selected_hack_tools & available_ids
 
         if "botnet_pc" in selected_tools and context is not None:
-            self._consume_inventory("botnet_pc")
+            botnet_free = self._storm_botnet_is_free()
+            if not botnet_free:
+                self._consume_inventory("botnet_pc")
             context["applied_tools"] = ("botnet_pc",)
             self.pending_hack_launch = None
             self.selected_hack_tools = set()
@@ -10232,8 +11489,13 @@ class ZeroDayApp:
                 and bool(order_reference.get("is_tutorial"))
             ):
                 self.tutorial_step = 4
+            botnet_message = (
+                "Ботнет выполнил бесплатный авто-взлом во время DDoS-волны"
+                if botnet_free
+                else "Ботнет выполнил авто-взлом ПК"
+            )
             self._push_notification(
-                "Ботнет выполнил авто-взлом ПК",
+                botnet_message,
                 COLOR_SUCCESS,
                 sound_id="success",
             )
@@ -10403,6 +11665,13 @@ class ZeroDayApp:
             ),
         )
         effective_context = hack_context or order_context
+        if self._target_cooldown_remaining(effective_context, game_id) > 0.0:
+            self._push_notification(
+                self._target_cooldown_message(effective_context, game_id),
+                COLOR_ERROR,
+                force=True,
+            )
+            return
         if effective_context is not None:
             game_difficulty = self._effective_target_difficulty(game_difficulty)
         if game_id == "bruteforce_lock":
@@ -10441,6 +11710,13 @@ class ZeroDayApp:
         if self.active_hack_context is not None:
             self.active_hack_context["applied_tools"] = tuple(sorted(active_tools))
             self.active_hack_context["effective_difficulty"] = game_difficulty
+        if self._storm_effect_active("servers_hard"):
+            self._apply_server_storm_hp_to_active_game()
+        self._configure_counter_hack(
+            game_difficulty,
+            effective_context,
+            game_id,
+        )
         self.post_hack_mode = "actions"
         self._change_state(state)
 
@@ -10479,6 +11755,7 @@ class ZeroDayApp:
         self.pending_minigame_order = None
         self.active_hack_context = None
         self.active_minigame = None
+        self._clear_counter_hack_attempt()
         self._schedule_next_hacker_attack()
         self._change_state(STATE_DESKTOP)
 
@@ -10489,6 +11766,19 @@ class ZeroDayApp:
             self._finish_intrusion_defense(succeeded)
             return
         game_succeeded = report_result and minigame is not None and minigame.success
+        if bool(self.counter_hack.get("active")):
+            if game_succeeded and bool(self.counter_hack.get("triggered")):
+                self._resolve_counter_hack_success()
+            else:
+                self._clear_counter_hack_attempt()
+                self._sync_music_for_state()
+        elif (
+            not game_succeeded
+            and bool(self.counter_hack.get("triggered"))
+            and not bool(self.counter_hack.get("failed"))
+        ):
+            self._clear_counter_hack_attempt()
+            self._sync_music_for_state()
         context = self.active_hack_context or self.pending_minigame_order
         if (
             context is not None
@@ -10698,10 +11988,17 @@ class ZeroDayApp:
                 self.tutorial_step = max(TUTORIAL_MESSAGES)
         if not self.story_finale_reached:
             self._issue_due_story_order(customer)
-        reward = float(reward_value)
-        self._change_balance(reward, f"Заказ #{order_id:03d}")
+        reward = (
+            self._payable_order_reward(order_reference)
+            if isinstance(order_reference, dict)
+            else round(
+                float(reward_value) * self._storm_order_reward_multiplier(),
+                6,
+            )
+        )
+        paid_reward = self._change_balance(reward, f"Заказ #{order_id:03d}")
         message = (
-            f"Информация передана. Награда ₿ {reward:.3f} и "
+            f"Информация передана. Награда ₿ {paid_reward:.3f} и "
             f"+{SKILL_POINTS_PER_COMPLETED_ORDER} SP зачислены."
         )
         self._append_messenger_message(customer, "outgoing", message)
@@ -10723,27 +12020,33 @@ class ZeroDayApp:
                 color = COLOR_HOT_ACCENT
             else:
                 self._play_sound("sfx_install")
+                counter_multiplier = self._counter_hack_reward_multiplier()
+                miner_rate = MINER_RATE_BTC_PER_MINUTE * counter_multiplier
                 self.miner_targets.append(
                     {
                         "key": miner_key,
                         "name": target_name,
                         "target_type": target_type,
-                        "rate": MINER_RATE_BTC_PER_MINUTE,
+                        "rate": miner_rate,
                         "added_at": self.total_elapsed,
                     }
                 )
                 used_payload = self._consume_inventory("malware_miner")
+                bootstrap_reward = 0.0
                 if used_payload:
-                    self.miner_pending_income += MALWARE_MINER_BOOTSTRAP_BTC
-                    self.miner_earned_total += MALWARE_MINER_BOOTSTRAP_BTC
+                    bootstrap_reward = (
+                        MALWARE_MINER_BOOTSTRAP_BTC
+                        * self._storm_income_multiplier()
+                        * counter_multiplier
+                    )
+                    self.miner_pending_income += bootstrap_reward
+                    self.miner_earned_total += bootstrap_reward
                 payload_text = (
-                    f"; payload +₿ {MALWARE_MINER_BOOTSTRAP_BTC:.3f}"
-                    if used_payload
-                    else ""
+                    f"; payload +₿ {bootstrap_reward:.3f}" if used_payload else ""
                 )
                 message = (
                     f"Майнер добавлен: {target_name} "
-                    f"(+{MINER_RATE_BTC_PER_MINUTE:.3f} BTC/мин{payload_text})"
+                    f"(+{miner_rate:.3f} BTC/мин{payload_text})"
                 )
                 color = COLOR_SUCCESS
             self._finish_post_hack(message, color)
@@ -10770,10 +12073,10 @@ class ZeroDayApp:
                 ),
                 3,
             )
-            self._change_balance(reward, "Продажа данных")
+            paid_reward = self._change_balance(reward, "Продажа данных")
             spy_text = " • использован Шпион" if used_spy else ""
             self._finish_post_hack(
-                f"Данные проданы: +₿ {reward:.3f}{spy_text}",
+                f"Данные проданы: +₿ {paid_reward:.3f}{spy_text}",
                 COLOR_SUCCESS,
             )
         elif action == "ransomware":
@@ -10783,14 +12086,17 @@ class ZeroDayApp:
             if used_ransomware:
                 reward *= MALWARE_RANSOM_REWARD_MULTIPLIER
             reward = round(reward, 3)
-            self._change_balance(reward, "Выкуп шифровальщика")
-            self._change_suspicion(
+            paid_reward = self._change_balance(reward, "Выкуп шифровальщика")
+            suspicion_added = self._change_suspicion(
                 POST_HACK_RANSOM_SUSPICION,
                 "Сигнатура шифровальщика обнаружена следственной группой",
             )
             payload_text = " • усиленная малварь" if used_ransomware else ""
             self._finish_post_hack(
-                (f"Выкуп получен: +₿ {reward:.3f}; подозрение +15%{payload_text}"),
+                (
+                    f"Выкуп получен: +₿ {paid_reward:.3f}; "
+                    f"подозрение +{suspicion_added:.0f}%{payload_text}"
+                ),
                 COLOR_ERROR,
             )
         elif action == "order_info":
@@ -10828,9 +12134,12 @@ class ZeroDayApp:
                 ),
                 3,
             )
-            self._change_balance(reward, f"Шантаж: {tone['name']}")
+            paid_reward = self._change_balance(reward, f"Шантаж: {tone['name']}")
             self._finish_post_hack(
-                (f"Шантаж успешен ({tone['name']}): +₿ {reward:.3f}{keylogger_text}"),
+                (
+                    f"Шантаж успешен ({tone['name']}): "
+                    f"+₿ {paid_reward:.3f}{keylogger_text}"
+                ),
                 COLOR_SUCCESS,
             )
         else:
@@ -10918,6 +12227,7 @@ class ZeroDayApp:
             self._change_suspicion(0.0, "Шкала подозрения достигла 100%")
         self._update_desktop_timers(delta_seconds)
         self._update_live_events(delta_seconds)
+        self._update_network_storm(delta_seconds)
 
         if self.state == STATE_CRT and self.state_elapsed >= CRT_DURATION_SECONDS:
             self._change_state(STATE_BOOT)
@@ -10928,10 +12238,12 @@ class ZeroDayApp:
         elif self.state == STATE_DESKTOP:
             self.desktop_session_elapsed += delta_seconds
         elif self.state in MINIGAME_STATES and self.active_minigame is not None:
-            self.active_minigame.update(delta_seconds)
+            if not bool(self.counter_hack.get("failed")):
+                self.active_minigame.update(delta_seconds)
             if isinstance(self.active_minigame, IntrusionDefense):
                 self._apply_intrusion_outcome(self.active_minigame)
 
+        self._update_counter_hack(delta_seconds)
         self.manager.update(delta_seconds)
         self._update_audio(delta_seconds)
 
@@ -12144,9 +13456,20 @@ class ZeroDayApp:
             hit_rect = self._desktop_icon_hit_rect(index)
             hovered = hit_rect.collidepoint(mouse)
             open_window = windows_by_app.get(app_id)
-            fill_color = COLOR_ACCENT if hovered else COLOR_PANEL
+            darknet_disabled = (
+                app_id == DARKNET_APP_ID and self._darknet_closed_by_storm()
+            )
+            fill_color = (
+                COLOR_TASKBAR
+                if darknet_disabled
+                else COLOR_ACCENT
+                if hovered
+                else COLOR_PANEL
+            )
             border_color = (
-                COLOR_HOT_ACCENT
+                COLOR_MUTED
+                if darknet_disabled
+                else COLOR_HOT_ACCENT
                 if hovered
                 else COLOR_SUCCESS
                 if open_window is not None and not open_window.minimized
@@ -12165,7 +13488,7 @@ class ZeroDayApp:
                 width=self._s(BORDER_WIDTH),
                 border_radius=self._s(DESKTOP_ICON_CORNER_RADIUS),
             )
-            if hovered:
+            if hovered and not darknet_disabled:
                 hover_rect = square.inflate(
                     DESKTOP_ICON_HOVER_EXPANSION * 2,
                     DESKTOP_ICON_HOVER_EXPANSION * 2,
@@ -12183,7 +13506,7 @@ class ZeroDayApp:
                 symbol,
                 square.center,
                 DESKTOP_ICON_SYMBOL_FONT_SIZE,
-                COLOR_TEXT,
+                COLOR_MUTED if darknet_disabled else COLOR_TEXT,
                 center=True,
                 bold=True,
             )
@@ -12191,7 +13514,7 @@ class ZeroDayApp:
                 title,
                 (square.centerx, square.y + DESKTOP_ICON_LABEL_OFFSET_Y),
                 DESKTOP_ICON_LABEL_FONT_SIZE,
-                COLOR_TEXT,
+                COLOR_MUTED if darknet_disabled else COLOR_TEXT,
                 center=True,
             )
             if open_window is not None:
@@ -12641,7 +13964,15 @@ class ZeroDayApp:
         font = self._font(MESSENGER_TEXT_FONT_SIZE)
         layouts: list[dict[str, object]] = []
         for message in self.messenger_messages[selected]:
-            display_text = self._event_display_text(str(message["text"]))
+            message_text = str(message["text"])
+            if (
+                active_order is not None
+                and message.get("direction") == "incoming"
+                and message.get("order_id") == active_order.get("id")
+                and active_order.get("status") == "pending"
+            ):
+                message_text = self._order_message(active_order)
+            display_text = self._event_display_text(message_text)
             lines = self._wrap_text(display_text, font, text_width_pixels)
             timer_text = ""
             timer_is_hot = False
@@ -12858,7 +14189,7 @@ class ZeroDayApp:
             )
             timer = self._format_deadline(float(order["deadline_at"]))
             self._draw_text(
-                f"₿ {float(order['reward']):.3f}  •  {timer}",
+                f"₿ {self._payable_order_reward(order):.3f}  •  {timer}",
                 (
                     card.right - MESSENGER_FORUM_REWARD_RIGHT_MARGIN,
                     card.y
@@ -12995,7 +14326,14 @@ class ZeroDayApp:
                 if effective_difficulty != base_difficulty
                 else f"L{base_difficulty}"
             )
+            cooldown_context = {
+                "target": target.get("name", "цель"),
+                "target_type": target.get("target_type", "Обычный ПК"),
+            }
+            cooldown = self._target_cooldown_remaining(cooldown_context, "")
             protection = f"ЗАЩИТА: {target['protection']}  {difficulty_text}"
+            if cooldown > 0.0:
+                protection = f"БЛОК {self._format_countdown(cooldown)}  //  {protection}"
             protection_rect = self._draw_text(
                 protection,
                 (
@@ -13003,7 +14341,11 @@ class ZeroDayApp:
                     row.y + BROWSER_RESULT_TEXT_Y_OFFSET,
                 ),
                 BROWSER_FONT_SIZE,
-                COLOR_SUCCESS if effective_difficulty <= 2 else COLOR_HOT_ACCENT,
+                COLOR_ERROR
+                if cooldown > 0.0
+                else COLOR_SUCCESS
+                if effective_difficulty <= 2
+                else COLOR_HOT_ACCENT,
                 right=True,
                 bold=True,
             )
@@ -13048,24 +14390,43 @@ class ZeroDayApp:
         if self.browser_selected_target is not None:
             hack_rect = self._browser_hack_rect(window)
             hovered = hack_rect.collidepoint(mouse)
+            selected_context = {
+                "target": self.browser_selected_target.get("name", "цель"),
+                "target_type": self.browser_selected_target.get(
+                    "target_type",
+                    "Обычный ПК",
+                ),
+            }
+            cooldown = self._target_cooldown_remaining(selected_context, "")
+            locked = cooldown > 0.0
             pygame.draw.rect(
                 self.screen,
-                COLOR_HOT_ACCENT if hovered else COLOR_SUCCESS,
+                COLOR_PANEL
+                if locked
+                else COLOR_HOT_ACCENT
+                if hovered
+                else COLOR_SUCCESS,
                 self._window_rect(hack_rect),
                 border_radius=self._s(MESSENGER_ACTION_CORNER_RADIUS),
             )
             pygame.draw.rect(
                 self.screen,
-                COLOR_TEXT if hovered else COLOR_SUCCESS,
+                COLOR_ERROR
+                if locked
+                else COLOR_TEXT
+                if hovered
+                else COLOR_SUCCESS,
                 self._window_rect(hack_rect),
                 width=self._s(BORDER_WIDTH),
                 border_radius=self._s(MESSENGER_ACTION_CORNER_RADIUS),
             )
             self._draw_text(
-                "Взломать",
+                f"Недоступна {self._format_countdown(cooldown)}"
+                if locked
+                else "Взломать",
                 hack_rect.center,
                 BROWSER_HEADER_FONT_SIZE,
-                COLOR_BACKGROUND,
+                COLOR_ERROR if locked else COLOR_BACKGROUND,
                 center=True,
                 bold=True,
             )
@@ -13083,6 +14444,24 @@ class ZeroDayApp:
         mouse: tuple[float, float],
     ) -> None:
         content = self._window_content_rect(window)
+        if self._darknet_closed_by_storm():
+            pygame.draw.rect(self.screen, COLOR_TASKBAR, self._window_rect(content))
+            self._draw_text(
+                "DARKNET // OFFLINE",
+                (content.centerx, content.centery - 24),
+                28,
+                COLOR_MUTED,
+                center=True,
+                bold=True,
+            )
+            self._draw_text(
+                STORM_DARKNET_CLOSED_MESSAGE,
+                (content.centerx, content.centery + 22),
+                15,
+                COLOR_ERROR,
+                center=True,
+            )
+            return
         sidebar = self._darknet_sidebar_rect(window)
         pygame.draw.rect(self.screen, COLOR_TASKBAR, self._window_rect(content))
         pygame.draw.rect(self.screen, COLOR_BACKGROUND, self._window_rect(sidebar))
@@ -13175,6 +14554,8 @@ class ZeroDayApp:
             category_heading += (
                 f"  •  СКИДКА -30% {self._format_countdown(self.darknet_discount_timer)}"
             )
+        if self._storm_effect_active("shop_discount"):
+            category_heading += "  •  ТЁМНАЯ ПЯТНИЦА -50%"
         self._draw_text(
             category_heading,
             (
@@ -13254,19 +14635,44 @@ class ZeroDayApp:
                     DARKNET_TEXT_FONT_SIZE,
                     COLOR_TEXT,
                 )
-            price_label = f"BTC {effective_price:.3f}"
-            if self.darknet_discount_timer > 0.0:
-                price_label += "  -30%"
-            self._draw_text(
-                price_label,
-                (
-                    card.x + DARKNET_CARD_PRICE_OFFSET[0],
-                    card.y + DARKNET_CARD_PRICE_OFFSET[1],
-                ),
-                DARKNET_TEXT_FONT_SIZE,
-                COLOR_SUCCESS if has_funds else COLOR_ERROR,
-                bold=True,
-            )
+            price_x = card.x + DARKNET_CARD_PRICE_OFFSET[0]
+            price_y = card.y + DARKNET_CARD_PRICE_OFFSET[1]
+            if self._storm_effect_active("shop_discount"):
+                pre_storm_price = float(product["price"])
+                if self.darknet_discount_timer > 0.0:
+                    pre_storm_price *= 1.0 - CALL_INFORMANT_DISCOUNT_RATE
+                self._draw_text(
+                    f"{pre_storm_price:.3f}",
+                    (price_x, price_y),
+                    DARKNET_TEXT_FONT_SIZE,
+                    COLOR_MUTED,
+                    bold=True,
+                )
+                pygame.draw.line(
+                    self.screen,
+                    COLOR_ERROR,
+                    self._point((price_x, price_y + 7)),
+                    self._point((price_x + 42, price_y + 7)),
+                    self._s(2),
+                )
+                self._draw_text(
+                    f"> {effective_price:.3f}",
+                    (price_x + 50, price_y),
+                    DARKNET_TEXT_FONT_SIZE,
+                    COLOR_SUCCESS if has_funds else COLOR_ERROR,
+                    bold=True,
+                )
+            else:
+                price_label = f"BTC {effective_price:.3f}"
+                if self.darknet_discount_timer > 0.0:
+                    price_label += "  -30%"
+                self._draw_text(
+                    price_label,
+                    (price_x, price_y),
+                    DARKNET_TEXT_FONT_SIZE,
+                    COLOR_SUCCESS if has_funds else COLOR_ERROR,
+                    bold=True,
+                )
             self._draw_text(
                 self._darknet_stock_text(product),
                 (
@@ -14256,8 +15662,12 @@ class ZeroDayApp:
         font = self._font(DESKTOP_TASKBAR_FONT_SIZE, True)
         formatted = DESKTOP_BTC_TEMPLATE.format(balance=self.btc_balance)
         number_text = formatted.removeprefix("₿ ")
-        bitcoin_image = font.render("B", True, COLOR_TEXT)
-        number_image = font.render(number_text, True, COLOR_TEXT)
+        crypto_boom_flash = self._storm_effect_active("income_x3") and (
+            int(self.total_elapsed * 2.0) % 2 == 0
+        )
+        balance_color = COLOR_GOLD if crypto_boom_flash else COLOR_TEXT
+        bitcoin_image = font.render("B", True, balance_color)
+        number_image = font.render(number_text, True, balance_color)
         right_x, top_y = self._point(DESKTOP_BTC_RIGHT_POS)
         gap = self._s(DESKTOP_BTC_TEXT_GAP)
         total_width = bitcoin_image.get_width() + gap + number_image.get_width()
@@ -14266,7 +15676,7 @@ class ZeroDayApp:
         for stroke_offset in DESKTOP_BTC_STROKE_OFFSETS:
             pygame.draw.rect(
                 self.screen,
-                COLOR_TEXT,
+                balance_color,
                 pygame.Rect(
                     bitcoin_x + self._s(stroke_offset),
                     top_y,
@@ -14375,6 +15785,7 @@ class ZeroDayApp:
             COLOR_ACCENT,
             center=True,
         )
+        self._draw_storm_taskbar_status()
         self._draw_game_clock()
         suspicion_color = (
             COLOR_ERROR
@@ -14501,7 +15912,10 @@ class ZeroDayApp:
         for index, (app_id, title, symbol) in enumerate(DESKTOP_APPS):
             item_rect = self._launcher_item_rect(index)
             hovered = item_rect.collidepoint(mouse)
-            if hovered:
+            darknet_disabled = (
+                app_id == DARKNET_APP_ID and self._darknet_closed_by_storm()
+            )
+            if hovered and not darknet_disabled:
                 pygame.draw.rect(
                     self.screen,
                     COLOR_ACCENT,
@@ -14513,14 +15927,18 @@ class ZeroDayApp:
                 symbol,
                 (DESKTOP_LAUNCHER_SYMBOL_X, item_y),
                 DESKTOP_LAUNCHER_FONT_SIZE,
-                COLOR_SUCCESS if app_id in open_apps else COLOR_HOT_ACCENT,
+                COLOR_MUTED
+                if darknet_disabled
+                else COLOR_SUCCESS
+                if app_id in open_apps
+                else COLOR_HOT_ACCENT,
                 bold=True,
             )
             self._draw_text(
-                title,
+                f"{title} [OFF]" if darknet_disabled else title,
                 (DESKTOP_LAUNCHER_TEXT_X, item_y),
                 DESKTOP_LAUNCHER_FONT_SIZE,
-                COLOR_TEXT,
+                COLOR_MUTED if darknet_disabled else COLOR_TEXT,
             )
 
         self._draw_text(
@@ -14965,9 +16383,15 @@ class ZeroDayApp:
             center=True,
             bold=True,
         )
+        display_reward = round(
+            float(context.get("reward", 0.0))
+            * self._storm_order_reward_multiplier()
+            * self._counter_hack_reward_multiplier(),
+            6,
+        )
         associated_text = (
             f"ЗАКАЗ #{int(context['order_id']):03d} • "
-            f"НАГРАДА ₿ {float(context['reward']):.3f}"
+            f"НАГРАДА ₿ {display_reward:.3f}"
             if context.get("order_id") is not None and context.get("reward") is not None
             else "АВТОНОМНЫЙ ВЗЛОМ • ЗАКАЗ НЕ СВЯЗАН"
         )
@@ -15441,6 +16865,8 @@ class ZeroDayApp:
             fade.fill((*COLOR_TASKBAR[:3], round(SCREEN_TRANSITION_MAX_ALPHA * ratio)))
             self.screen.blit(fade, (0, 0))
         self._draw_live_event_overlays()
+        self._draw_network_storm_overlay()
+        self._draw_counter_hack_overlay()
         self._apply_call_screen_shake()
         pygame.display.flip()
 
